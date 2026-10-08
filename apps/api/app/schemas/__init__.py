@@ -1,5 +1,7 @@
 from app.schemas.hypothesis import (
     HypothesisBase,
+    HypothesisCompareRequest,
+    HypothesisComparisonResponse,
     HypothesisCreate,
     HypothesisDetailRead,
     HypothesisEvidenceCreate,
@@ -11,6 +13,10 @@ from app.schemas.hypothesis import (
     MissingEvidenceCreate,
     MissingEvidenceRead,
     MissingEvidenceUpdate,
+    MatrixCellRead,
+    EvidenceMatrixRowRead,
+    ObservationMatrixRowRead,
+    ComparisonSummaryRead,
 )
 from app.schemas.investigation import (
     GeoJSONFeature,
@@ -67,5 +73,11 @@ __all__ = [
     "MissingEvidenceCreate",
     "MissingEvidenceUpdate",
     "MissingEvidenceRead",
+    "HypothesisCompareRequest",
+    "HypothesisComparisonResponse",
+    "MatrixCellRead",
+    "EvidenceMatrixRowRead",
+    "ObservationMatrixRowRead",
+    "ComparisonSummaryRead",
 ]
 

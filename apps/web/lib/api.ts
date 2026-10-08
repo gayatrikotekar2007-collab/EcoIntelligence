@@ -226,6 +226,71 @@ export interface UpdateMissingEvidencePayload {
   status?: RequirementStatusType;
 }
 
+export interface MatrixCell {
+  hypothesis_id: number;
+  relationship_type: HypothesisRelationshipType | 'NOT_LINKED';
+  is_linked: boolean;
+  note?: string | null;
+}
+
+export interface EvidenceMatrixRow {
+  evidence_id: number;
+  original_filename: string;
+  evidence_type: string;
+  mime_type?: string | null;
+  description?: string | null;
+  captured_at?: string | null;
+  location_id?: number | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  cells: MatrixCell[];
+  is_common: boolean;
+  is_discriminating: boolean;
+  relationship_classification: 'SAME' | 'DIFFERENT' | 'SINGLE_ASSOCIATION';
+  has_contradiction: boolean;
+}
+
+export interface ObservationMatrixRow {
+  observation_id: number;
+  category: string;
+  description: string;
+  severity: string;
+  created_at: string;
+  cells: MatrixCell[];
+  is_common: boolean;
+  is_discriminating: boolean;
+  relationship_classification: 'SAME' | 'DIFFERENT' | 'SINGLE_ASSOCIATION';
+  has_contradiction: boolean;
+}
+
+export interface ComparisonSummary {
+  selected_hypotheses_count: number;
+  total_evidence_referenced: number;
+  common_evidence_count: number;
+  discriminating_evidence_count: number;
+  contradicting_evidence_count: number;
+  total_observations_referenced: number;
+  common_observations_count: number;
+  discriminating_observations_count: number;
+  unresolved_requirements_count: number;
+}
+
+export interface HypothesisComparisonResponse {
+  investigation_id: number;
+  hypotheses: Hypothesis[];
+  evidence_matrix: EvidenceMatrixRow[];
+  observation_matrix: ObservationMatrixRow[];
+  common_evidence: EvidenceMatrixRow[];
+  discriminating_evidence: EvidenceMatrixRow[];
+  contradicting_evidence: EvidenceMatrixRow[];
+  missing_requirements: MissingEvidenceRequirement[];
+  summary: ComparisonSummary;
+}
+
+export interface CompareHypothesesPayload {
+  hypothesis_ids: number[];
+}
+
 export interface BoundingRegion {
   x: number;
   y: number;
@@ -934,6 +999,19 @@ export const hypothesesApi = {
     return apiFetch<void>(
       `/api/v1/investigations/${investigationId}/hypotheses/${hypothesisId}/missing-evidence/${requirementId}`,
       { method: 'DELETE' }
+    );
+  },
+
+  async compare(
+    investigationId: number,
+    hypothesisIds: number[]
+  ): Promise<HypothesisComparisonResponse> {
+    return apiFetch<HypothesisComparisonResponse>(
+      `/api/v1/investigations/${investigationId}/hypotheses/compare`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ hypothesis_ids: hypothesisIds }),
+      }
     );
   },
 };

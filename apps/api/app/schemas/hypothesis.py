@@ -230,3 +230,88 @@ class HypothesisDetailRead(HypothesisRead):
     timeline_entries: List[TimelineEntryRead] = []
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class HypothesisCompareRequest(BaseModel):
+    hypothesis_ids: List[int]
+
+    @field_validator("hypothesis_ids")
+    @classmethod
+    def validate_hypothesis_ids(cls, v: List[int]) -> List[int]:
+        if not v or len(v) < 2:
+            raise ValueError("At least two hypotheses are required for comparison.")
+        if len(v) != len(set(v)):
+            raise ValueError("Duplicate hypothesis IDs are not permitted.")
+        return v
+
+
+class MatrixCellRead(BaseModel):
+    hypothesis_id: int
+    relationship_type: str  # "SUPPORTS" | "CONTRADICTS" | "CONTEXT" | "NOT_LINKED"
+    is_linked: bool
+    note: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class EvidenceMatrixRowRead(BaseModel):
+    evidence_id: int
+    original_filename: str
+    evidence_type: str
+    mime_type: Optional[str] = None
+    description: Optional[str] = None
+    captured_at: Optional[datetime] = None
+    location_id: Optional[int] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    cells: List[MatrixCellRead] = []
+    is_common: bool = False
+    is_discriminating: bool = False
+    relationship_classification: str = "SINGLE_ASSOCIATION"  # "SAME", "DIFFERENT", "SINGLE_ASSOCIATION"
+    has_contradiction: bool = False
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ObservationMatrixRowRead(BaseModel):
+    observation_id: int
+    category: str
+    description: str
+    severity: str
+    created_at: datetime
+    cells: List[MatrixCellRead] = []
+    is_common: bool = False
+    is_discriminating: bool = False
+    relationship_classification: str = "SINGLE_ASSOCIATION"  # "SAME", "DIFFERENT", "SINGLE_ASSOCIATION"
+    has_contradiction: bool = False
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ComparisonSummaryRead(BaseModel):
+    selected_hypotheses_count: int
+    total_evidence_referenced: int
+    common_evidence_count: int
+    discriminating_evidence_count: int
+    contradicting_evidence_count: int
+    total_observations_referenced: int
+    common_observations_count: int
+    discriminating_observations_count: int
+    unresolved_requirements_count: int
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class HypothesisComparisonResponse(BaseModel):
+    investigation_id: int
+    hypotheses: List[HypothesisRead]
+    evidence_matrix: List[EvidenceMatrixRowRead]
+    observation_matrix: List[ObservationMatrixRowRead]
+    common_evidence: List[EvidenceMatrixRowRead]
+    discriminating_evidence: List[EvidenceMatrixRowRead]
+    contradicting_evidence: List[EvidenceMatrixRowRead]
+    missing_requirements: List[MissingEvidenceRead]
+    summary: ComparisonSummaryRead
+
+    model_config = ConfigDict(from_attributes=True)
+

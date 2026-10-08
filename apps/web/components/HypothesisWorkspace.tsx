@@ -5,6 +5,7 @@ import {
   hypothesesApi,
   Hypothesis,
   HypothesisDetail,
+  HypothesisComparisonResponse,
   HypothesisStatusType,
   HypothesisConfidenceType,
   HypothesisRelationshipType,
@@ -21,7 +22,9 @@ import {
   CheckCircleIcon,
   EyeIcon,
   ClockIcon,
+  LayersIcon,
 } from './Icons';
+import { HypothesisComparisonWorkspace } from './HypothesisComparisonWorkspace';
 
 interface HypothesisWorkspaceProps {
   investigationId: number;
@@ -83,6 +86,39 @@ export function HypothesisWorkspace({
 
   // Active workspace tab
   const [activeTab, setActiveTab] = useState<'evidence' | 'observations' | 'missing' | 'timeline'>('evidence');
+
+  // Phase 8B: Comparative Evaluation State
+  const [selectedForComparison, setSelectedForComparison] = useState<number[]>([]);
+  const [isComparing, setIsComparing] = useState<boolean>(false);
+  const [comparisonData, setComparisonData] = useState<HypothesisComparisonResponse | null>(null);
+  const [comparingLoading, setComparingLoading] = useState<boolean>(false);
+  const [comparisonError, setComparisonError] = useState<string | null>(null);
+
+  const toggleSelectForComparison = (id: number) => {
+    setSelectedForComparison((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  };
+
+  const handleStartComparison = async (overrideIds?: number[]) => {
+    const idsToCompare = overrideIds || selectedForComparison;
+    if (idsToCompare.length < 2) {
+      alert('Please select at least two hypotheses to compare.');
+      return;
+    }
+    try {
+      setComparingLoading(true);
+      setComparisonError(null);
+      const data = await hypothesesApi.compare(investigationId, idsToCompare);
+      setComparisonData(data);
+      setIsComparing(true);
+    } catch (err: any) {
+      setComparisonError(err.message || 'Failed to compare hypotheses.');
+      alert(err.message || 'Failed to compare hypotheses.');
+    } finally {
+      setComparingLoading(false);
+    }
+  };
 
   const fetchHypotheses = async () => {
     try {
@@ -371,89 +407,166 @@ export function HypothesisWorkspace({
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs space-y-6">
-      {/* 1. Header Section */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-100 pb-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-100 text-emerald-800 font-bold text-xs">
-              8A
-            </span>
-            <h2 className="text-base font-bold text-slate-900">
-              Root-Cause Hypotheses Workspace
-            </h2>
-          </div>
-          <p className="mt-1 text-xs text-slate-500 max-w-2xl">
-            Investigator reasoning workspace for recording, evaluating, and tracking possible explanations.
-            Evaluates what evidence supports each explanation, what contradicts it, and what information requirements remain missing.
-          </p>
-        </div>
-
-        <button
-          onClick={() => setIsCreateModalOpen(true)}
-          className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-2 text-xs font-semibold text-white shadow-xs hover:bg-emerald-700 transition shrink-0"
-        >
-          <PlusIcon className="h-4 w-4" />
-          Formulate Hypothesis
-        </button>
-      </div>
-
-      {/* 2. Guardrail Banner */}
-      <div className="rounded-xl border border-blue-100 bg-blue-50/70 p-3.5 text-xs text-blue-900 flex items-start gap-2.5">
-        <AlertCircleIcon className="h-4 w-4 text-blue-600 shrink-0 mt-0.5" />
-        <div className="leading-relaxed">
-          <span className="font-semibold text-blue-950">Deterministic Evidence-First Guardrail: </span>
-          Hypotheses are investigator-governed candidate explanations. The platform never automatically asserts causality or predicts environmental fault. Confidence represents investigator assessment, not statistical probability.
-        </div>
-      </div>
-
-      {/* 3. Hypotheses List */}
-      {loading ? (
-        <div className="flex h-36 items-center justify-center">
-          <div className="flex flex-col items-center gap-2">
-            <div className="h-6 w-6 animate-spin rounded-full border-2 border-emerald-600 border-t-transparent" />
-            <span className="text-xs text-slate-500">Loading hypotheses...</span>
-          </div>
-        </div>
-      ) : error ? (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-xs text-red-700">
-          {error}
-        </div>
-      ) : hypotheses.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center space-y-2">
-          <FileTextIcon className="mx-auto h-8 w-8 text-slate-300" />
-          <h4 className="text-xs font-bold text-slate-700">No Root-Cause Hypotheses Formulated Yet</h4>
-          <p className="text-xs text-slate-500 max-w-md mx-auto">
-            Formulate possible explanations to account for observed environmental findings.
-            Link supporting or contradicting evidence and identify critical missing information requirements.
-          </p>
-          <button
-            onClick={() => setIsCreateModalOpen(true)}
-            className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-slate-50 transition"
-          >
-            <PlusIcon className="h-3.5 w-3.5" />
-            Formulate First Hypothesis
-          </button>
-        </div>
+      {isComparing && comparisonData ? (
+        <HypothesisComparisonWorkspace
+          comparison={comparisonData}
+          onClose={() => setIsComparing(false)}
+          evidenceList={evidenceList}
+          observationsList={observationsList}
+        />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {hypotheses.map((h) => (
-            <div
-              key={h.id}
-              className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 hover:bg-white hover:shadow-xs transition flex flex-col justify-between"
-            >
-              <div>
-                <div className="flex items-start justify-between gap-2 mb-2">
-                  <h3 className="text-xs font-bold text-slate-900 leading-snug line-clamp-2">
-                    {h.title}
-                  </h3>
-                  <span
-                    className={`inline-flex shrink-0 items-center rounded-md border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${getStatusBadge(
-                      h.status
-                    )}`}
+        <>
+          {/* 1. Header Section */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-100 pb-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-100 text-emerald-800 font-bold text-xs">
+                  8A/8B
+                </span>
+                <h2 className="text-base font-bold text-slate-900">
+                  Root-Cause Hypotheses Workspace
+                </h2>
+              </div>
+              <p className="mt-1 text-xs text-slate-500 max-w-2xl">
+                Investigator reasoning workspace for formulating candidate explanations and performing
+                comparative matrix analysis against common evidence and observations.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {hypotheses.length >= 2 && (
+                <button
+                  onClick={() => {
+                    if (selectedForComparison.length >= 2) {
+                      handleStartComparison();
+                    } else {
+                      const allOrFirst = hypotheses.slice(0, 3).map((h) => h.id);
+                      setSelectedForComparison(allOrFirst);
+                      handleStartComparison(allOrFirst);
+                    }
+                  }}
+                  disabled={comparingLoading}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-purple-200 bg-purple-50 px-3.5 py-2 text-xs font-semibold text-purple-700 shadow-2xs hover:bg-purple-100 transition shrink-0"
+                >
+                  <LayersIcon className="h-4 w-4 text-purple-600" />
+                  {comparingLoading ? 'Analyzing...' : 'Compare Hypotheses (8B)'}
+                </button>
+              )}
+
+              <button
+                onClick={() => setIsCreateModalOpen(true)}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-2 text-xs font-semibold text-white shadow-xs hover:bg-emerald-700 transition shrink-0"
+              >
+                <PlusIcon className="h-4 w-4" />
+                Formulate Hypothesis
+              </button>
+            </div>
+          </div>
+
+          {/* 2. Guardrail Banner */}
+          <div className="rounded-xl border border-blue-100 bg-blue-50/70 p-3.5 text-xs text-blue-900 flex items-start gap-2.5">
+            <AlertCircleIcon className="h-4 w-4 text-blue-600 shrink-0 mt-0.5" />
+            <div className="leading-relaxed">
+              <span className="font-semibold text-blue-950">Deterministic Evidence-First Guardrail: </span>
+              Hypotheses are investigator-governed candidate explanations. The platform never automatically asserts causality or predicts environmental fault. Confidence represents investigator assessment, not statistical probability.
+            </div>
+          </div>
+
+          {/* 2b. Comparison Selection Bar (Step 3) */}
+          {selectedForComparison.length > 0 && (
+            <div className="flex items-center justify-between rounded-xl border border-purple-200 bg-purple-50/70 p-3 text-xs">
+              <div className="flex items-center gap-2">
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-purple-700 text-[10px] font-bold text-white">
+                  {selectedForComparison.length}
+                </span>
+                <span className="font-semibold text-purple-950">
+                  {selectedForComparison.length === 1
+                    ? '1 hypothesis selected (select at least 2 to compare)'
+                    : `${selectedForComparison.length} hypotheses selected for comparative matrix evaluation`}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setSelectedForComparison([])}
+                  className="text-[11px] font-medium text-slate-500 hover:text-slate-700"
+                >
+                  Clear Selection
+                </button>
+                <button
+                  disabled={selectedForComparison.length < 2 || comparingLoading}
+                  onClick={() => handleStartComparison()}
+                  className="rounded-lg bg-purple-700 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-purple-800 transition disabled:opacity-50 shadow-2xs"
+                >
+                  {comparingLoading ? 'Analyzing...' : 'Compare Selected Hypotheses →'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* 3. Hypotheses List */}
+          {loading ? (
+            <div className="flex h-36 items-center justify-center">
+              <div className="flex flex-col items-center gap-2">
+                <div className="h-6 w-6 animate-spin rounded-full border-2 border-emerald-600 border-t-transparent" />
+                <span className="text-xs text-slate-500">Loading hypotheses...</span>
+              </div>
+            </div>
+          ) : error ? (
+            <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-xs text-red-700">
+              {error}
+            </div>
+          ) : hypotheses.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center space-y-2">
+              <FileTextIcon className="mx-auto h-8 w-8 text-slate-300" />
+              <h4 className="text-xs font-bold text-slate-700">No Root-Cause Hypotheses Formulated Yet</h4>
+              <p className="text-xs text-slate-500 max-w-md mx-auto">
+                Formulate possible explanations to account for observed environmental findings.
+                Link supporting or contradicting evidence and identify critical missing information requirements.
+              </p>
+              <button
+                onClick={() => setIsCreateModalOpen(true)}
+                className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-slate-50 transition"
+              >
+                <PlusIcon className="h-3.5 w-3.5" />
+                Formulate First Hypothesis
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {hypotheses.map((h) => {
+                const isSelected = selectedForComparison.includes(h.id);
+                return (
+                  <div
+                    key={h.id}
+                    className={`rounded-xl border p-4 transition flex flex-col justify-between ${
+                      isSelected
+                        ? 'border-purple-300 bg-purple-50/30 shadow-2xs'
+                        : 'border-slate-200 bg-slate-50/50 hover:bg-white hover:shadow-xs'
+                    }`}
                   >
-                    {h.status.replace('_', ' ')}
-                  </span>
-                </div>
+                    <div>
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleSelectForComparison(h.id)}
+                            title="Select for Comparative Evaluation (Phase 8B)"
+                            className="rounded border-slate-300 text-purple-600 focus:ring-purple-500 h-4 w-4 cursor-pointer"
+                          />
+                          <h3 className="text-xs font-bold text-slate-900 leading-snug line-clamp-2">
+                            {h.title}
+                          </h3>
+                        </div>
+                        <span
+                          className={`inline-flex shrink-0 items-center rounded-md border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${getStatusBadge(
+                            h.status
+                          )}`}
+                        >
+                          {h.status.replace('_', ' ')}
+                        </span>
+                      </div>
 
                 {h.description && (
                   <p className="text-xs text-slate-600 line-clamp-2 mb-3 leading-relaxed">
@@ -502,9 +615,10 @@ export function HypothesisWorkspace({
                 </div>
               </div>
             </div>
-          ))}
-        </div>
-      )}
+          );
+        })}
+      </div>
+    )}
 
       {/* 4. Formulate Hypothesis Modal */}
       {isCreateModalOpen && (
@@ -1393,6 +1507,9 @@ export function HypothesisWorkspace({
           </div>
         </div>
       )}
-    </div>
-  );
+    </>
+  )}
+</div>
+);
 }
+

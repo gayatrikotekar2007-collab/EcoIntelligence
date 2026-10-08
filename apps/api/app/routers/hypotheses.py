@@ -24,6 +24,10 @@ from app.models.core import (
     User,
 )
 from app.schemas.hypothesis import (
+    ComparisonSummaryRead,
+    EvidenceMatrixRowRead,
+    HypothesisCompareRequest,
+    HypothesisComparisonResponse,
     HypothesisCreate,
     HypothesisDetailRead,
     HypothesisEvidenceCreate,
@@ -32,9 +36,11 @@ from app.schemas.hypothesis import (
     HypothesisObservationRead,
     HypothesisRead,
     HypothesisUpdate,
+    MatrixCellRead,
     MissingEvidenceCreate,
     MissingEvidenceRead,
     MissingEvidenceUpdate,
+    ObservationMatrixRowRead,
 )
 from app.schemas.investigation import EvidenceRead, ObservationRead
 from app.security import get_current_user
@@ -761,3 +767,284 @@ async def delete_missing_evidence_requirement(
     db.delete(req)
     db.commit()
     return None
+
+
+# ============================================================================
+# PHASE 8B — COMPARATIVE HYPOTHESIS EVALUATION & MATRIX ANALYSIS
+# ============================================================================
+
+
+@router.post(
+    "/{investigation_id}/hypotheses/compare",
+    response_model=HypothesisComparisonResponse,
+)
+async def compare_hypotheses(
+    investigation_id: int,
+    payload: HypothesisCompareRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Deterministic comparative evaluation across multiple competing hypotheses.
+    Constructs an evidence and observation comparison matrix from explicit
+    investigator relationships, identifies discriminating and common evidence,
+    and collates missing information requirements.
+    Does NOT assert automated ranking or causal probability.
+    """
+    _verify_investigation_access(investigation_id, current_user, db)
+
+    # 1. Validate minimum two hypotheses
+    if len(payload.hypothesis_ids) < 2:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="At least two hypotheses are required for comparison.",
+        )
+
+    # 2. Validate no duplicate IDs
+    if len(payload.hypothesis_ids) != len(set(payload.hypothesis_ids)):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Duplicate hypothesis IDs are not permitted.",
+        )
+
+    # 3. Retrieve requested hypotheses
+    hypotheses_records = (
+        db.query(Hypothesis)
+        .options(
+            joinedload(Hypothesis.evidence_links).joinedload(HypothesisEvidence.evidence),
+            joinedload(Hypothesis.observation_links).joinedload(HypothesisObservation.observation),
+            joinedload(Hypothesis.missing_evidence),
+        )
+        .filter(Hypothesis.id.in_(payload.hypothesis_ids))
+        .all()
+    )
+
+    found_map = {h.id: h for h in hypotheses_records}
+
+    # 4. Verify presence and investigation ownership for every ID
+    for hid in payload.hypothesis_ids:
+        if hid not in found_map:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Hypothesis {hid} not found.",
+            )
+        h = found_map[hid]
+        if h.investigation_id != investigation_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Hypothesis {hid} does not belong to this investigation.",
+            )
+
+    # Preserve requested order
+    ordered_hypotheses = [found_map[hid] for hid in payload.hypothesis_ids]
+
+    # Calculate hypothesis counts for each hypothesis
+    hypotheses_read_list: List[HypothesisRead] = []
+    for h in ordered_hypotheses:
+        read_obj = HypothesisRead.model_validate(h)
+        _calculate_hypothesis_counts(h, read_obj)
+        hypotheses_read_list.append(read_obj)
+
+    # --- EVIDENCE MATRIX ---
+    ev_links_map = {}
+    ev_ids_set = set()
+    for h in ordered_hypotheses:
+        for link in h.evidence_links or []:
+            ev_links_map[(link.evidence_id, h.id)] = link
+            ev_ids_set.add(link.evidence_id)
+
+    evidence_items = (
+        db.query(Evidence)
+        .filter(Evidence.id.in_(ev_ids_set))
+        .all()
+        if ev_ids_set
+        else []
+    )
+    ev_items_map = {e.id: e for e in evidence_items}
+
+    evidence_matrix: List[EvidenceMatrixRowRead] = []
+    for ev_id in sorted(ev_ids_set):
+        ev = ev_items_map.get(ev_id)
+        if not ev:
+            continue
+        ev_read = EvidenceRead.model_validate(ev)
+
+        cells: List[MatrixCellRead] = []
+        for h in ordered_hypotheses:
+            link = ev_links_map.get((ev_id, h.id))
+            if link:
+                cells.append(
+                    MatrixCellRead(
+                        hypothesis_id=h.id,
+                        relationship_type=link.relationship_type,
+                        is_linked=True,
+                        note=link.note,
+                    )
+                )
+            else:
+                cells.append(
+                    MatrixCellRead(
+                        hypothesis_id=h.id,
+                        relationship_type="NOT_LINKED",
+                        is_linked=False,
+                        note=None,
+                    )
+                )
+
+        linked_cells = [c for c in cells if c.is_linked]
+        linked_count = len(linked_cells)
+        is_common = linked_count >= 2
+        explicit_rels = {c.relationship_type for c in linked_cells}
+        is_discriminating = len(explicit_rels) > 1
+        has_contradiction = HypothesisRelationshipType.CONTRADICTS.value in explicit_rels
+
+        if is_discriminating:
+            rel_classification = "DIFFERENT"
+        elif is_common:
+            rel_classification = "SAME"
+        else:
+            rel_classification = "SINGLE_ASSOCIATION"
+
+        evidence_matrix.append(
+            EvidenceMatrixRowRead(
+                evidence_id=ev_read.id,
+                original_filename=ev_read.original_filename,
+                evidence_type=ev_read.evidence_type,
+                mime_type=ev_read.mime_type,
+                description=ev_read.description,
+                captured_at=ev_read.captured_at,
+                location_id=ev_read.location_id,
+                latitude=ev_read.latitude,
+                longitude=ev_read.longitude,
+                cells=cells,
+                is_common=is_common,
+                is_discriminating=is_discriminating,
+                relationship_classification=rel_classification,
+                has_contradiction=has_contradiction,
+            )
+        )
+
+    # --- OBSERVATION MATRIX ---
+    obs_links_map = {}
+    obs_ids_set = set()
+    for h in ordered_hypotheses:
+        for link in h.observation_links or []:
+            obs_links_map[(link.observation_id, h.id)] = link
+            obs_ids_set.add(link.observation_id)
+
+    observation_items = (
+        db.query(Observation)
+        .filter(Observation.id.in_(obs_ids_set))
+        .all()
+        if obs_ids_set
+        else []
+    )
+    obs_items_map = {o.id: o for o in observation_items}
+
+    observation_matrix: List[ObservationMatrixRowRead] = []
+    for obs_id in sorted(obs_ids_set):
+        obs = obs_items_map.get(obs_id)
+        if not obs:
+            continue
+        obs_read = ObservationRead.model_validate(obs)
+
+        cells = []
+        for h in ordered_hypotheses:
+            link = obs_links_map.get((obs_id, h.id))
+            if link:
+                cells.append(
+                    MatrixCellRead(
+                        hypothesis_id=h.id,
+                        relationship_type=link.relationship_type,
+                        is_linked=True,
+                        note=link.note,
+                    )
+                )
+            else:
+                cells.append(
+                    MatrixCellRead(
+                        hypothesis_id=h.id,
+                        relationship_type="NOT_LINKED",
+                        is_linked=False,
+                        note=None,
+                    )
+                )
+
+        linked_cells = [c for c in cells if c.is_linked]
+        linked_count = len(linked_cells)
+        is_common = linked_count >= 2
+        explicit_rels = {c.relationship_type for c in linked_cells}
+        is_discriminating = len(explicit_rels) > 1
+        has_contradiction = HypothesisRelationshipType.CONTRADICTS.value in explicit_rels
+
+        if is_discriminating:
+            rel_classification = "DIFFERENT"
+        elif is_common:
+            rel_classification = "SAME"
+        else:
+            rel_classification = "SINGLE_ASSOCIATION"
+
+        observation_matrix.append(
+            ObservationMatrixRowRead(
+                observation_id=obs_read.id,
+                category=obs_read.category,
+                description=obs_read.description,
+                severity=obs_read.severity.value if hasattr(obs_read.severity, "value") else str(obs_read.severity),
+                created_at=obs_read.created_at,
+                cells=cells,
+                is_common=is_common,
+                is_discriminating=is_discriminating,
+                relationship_classification=rel_classification,
+                has_contradiction=has_contradiction,
+            )
+        )
+
+    # --- FILTERED SUBSETS ---
+    common_evidence = [r for r in evidence_matrix if r.is_common]
+    discriminating_evidence = [r for r in evidence_matrix if r.is_discriminating]
+    contradicting_evidence = [r for r in evidence_matrix if r.has_contradiction]
+
+    # --- MISSING REQUIREMENTS ---
+    missing_requirements: List[MissingEvidenceRead] = []
+    for h in ordered_hypotheses:
+        for req in h.missing_evidence or []:
+            missing_requirements.append(MissingEvidenceRead.model_validate(req))
+
+    priority_order = {"HIGH": 0, "MEDIUM": 1, "LOW": 2}
+    missing_requirements.sort(
+        key=lambda r: (
+            0 if r.status == RequirementStatus.OPEN.value else 1,
+            priority_order.get(r.priority.value if hasattr(r.priority, "value") else str(r.priority), 1),
+            r.created_at,
+        )
+    )
+
+    unresolved_requirements_count = sum(
+        1 for r in missing_requirements if r.status == RequirementStatus.OPEN.value
+    )
+
+    # --- COMPARISON SUMMARY (COUNTS ONLY, NO AUTOMATED RANKING OR CAUSAL PROBABILITY) ---
+    summary = ComparisonSummaryRead(
+        selected_hypotheses_count=len(ordered_hypotheses),
+        total_evidence_referenced=len(evidence_matrix),
+        common_evidence_count=len(common_evidence),
+        discriminating_evidence_count=len(discriminating_evidence),
+        contradicting_evidence_count=len(contradicting_evidence),
+        total_observations_referenced=len(observation_matrix),
+        common_observations_count=sum(1 for r in observation_matrix if r.is_common),
+        discriminating_observations_count=sum(1 for r in observation_matrix if r.is_discriminating),
+        unresolved_requirements_count=unresolved_requirements_count,
+    )
+
+    return HypothesisComparisonResponse(
+        investigation_id=investigation_id,
+        hypotheses=hypotheses_read_list,
+        evidence_matrix=evidence_matrix,
+        observation_matrix=observation_matrix,
+        common_evidence=common_evidence,
+        discriminating_evidence=discriminating_evidence,
+        contradicting_evidence=contradicting_evidence,
+        missing_requirements=missing_requirements,
+        summary=summary,
+    )
+
