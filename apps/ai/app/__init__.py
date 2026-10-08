@@ -1,0 +1,1 @@
+"""EcoIntelligence AI service package."""
