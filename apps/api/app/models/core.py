@@ -144,6 +144,7 @@ class Investigation(Base):
     evidence: Mapped[list["Evidence"]] = relationship(back_populates="investigation", cascade="save-update, merge")
     timeline_entries: Mapped[list["TimelineEntry"]] = relationship(back_populates="investigation", cascade="save-update, merge")
     hypotheses: Mapped[list["Hypothesis"]] = relationship(back_populates="investigation", cascade="save-update, merge")
+    actions: Mapped[list["ActionPlan"]] = relationship(back_populates="investigation", cascade="save-update, merge")
 
     __table_args__ = (
         Index("ix_investigations_owner_status_created", "owner_id", "status", "created_at"),
@@ -176,6 +177,7 @@ class Observation(Base):
     location: Mapped[Optional[Location]] = relationship(back_populates="observations")
     evidence: Mapped[list["Evidence"]] = relationship(back_populates="observation", cascade="save-update, merge")
     hypothesis_links: Mapped[list["HypothesisObservation"]] = relationship(back_populates="observation", cascade="save-update, merge")
+    action_links: Mapped[list["ActionObservation"]] = relationship(back_populates="observation", cascade="save-update, merge")
 
     __table_args__ = (
         CheckConstraint("confidence BETWEEN 0 AND 100", name="ck_observations_confidence_range"),
@@ -203,6 +205,7 @@ class Evidence(Base):
     observation: Mapped[Optional[Observation]] = relationship(back_populates="evidence")
     location: Mapped[Optional[Location]] = relationship(back_populates="evidence")
     hypothesis_links: Mapped[list["HypothesisEvidence"]] = relationship(back_populates="evidence", cascade="save-update, merge")
+    action_links: Mapped[list["ActionEvidence"]] = relationship(back_populates="evidence", cascade="save-update, merge")
 
     @property
     def parsed_metadata(self) -> dict:
@@ -324,6 +327,7 @@ class Hypothesis(Base):
     evidence_links: Mapped[list["HypothesisEvidence"]] = relationship(back_populates="hypothesis", cascade="all, delete-orphan")
     observation_links: Mapped[list["HypothesisObservation"]] = relationship(back_populates="hypothesis", cascade="all, delete-orphan")
     missing_evidence: Mapped[list["MissingEvidence"]] = relationship(back_populates="hypothesis", cascade="all, delete-orphan")
+    actions: Mapped[list["ActionPlan"]] = relationship(back_populates="hypothesis")
 
     __table_args__ = (
         Index("ix_hypotheses_investigation_created", "investigation_id", "created_at"),
@@ -381,3 +385,180 @@ class MissingEvidence(Base):
     resolved_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
     hypothesis: Mapped[Hypothesis] = relationship(back_populates="missing_evidence")
+
+
+class ActionStatus(str, Enum):
+    PLANNED = "PLANNED"
+    IN_PROGRESS = "IN_PROGRESS"
+    COMPLETED = "COMPLETED"
+    CANCELLED = "CANCELLED"
+    VERIFICATION_PENDING = "VERIFICATION_PENDING"
+    VERIFIED = "VERIFIED"
+    PARTIALLY_VERIFIED = "PARTIALLY_VERIFIED"
+    NOT_VERIFIED = "NOT_VERIFIED"
+
+
+class ActionPriority(str, Enum):
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+
+
+class MeasurementType(str, Enum):
+    OBSERVATION = "OBSERVATION"
+    NUMERIC = "NUMERIC"
+    BOOLEAN = "BOOLEAN"
+    TEXT = "TEXT"
+
+
+class ComparisonOperator(str, Enum):
+    LT = "LT"
+    LTE = "LTE"
+    EQ = "EQ"
+    GTE = "GTE"
+    GT = "GT"
+
+
+class ActionRelationshipType(str, Enum):
+    BEFORE_ACTION = "BEFORE_ACTION"
+    DURING_ACTION = "DURING_ACTION"
+    AFTER_ACTION = "AFTER_ACTION"
+    VERIFICATION = "VERIFICATION"
+
+
+class VerificationStatus(str, Enum):
+    PENDING = "PENDING"
+    VERIFIED = "VERIFIED"
+    PARTIALLY_VERIFIED = "PARTIALLY_VERIFIED"
+    NOT_VERIFIED = "NOT_VERIFIED"
+    INCONCLUSIVE = "INCONCLUSIVE"
+
+
+class CriterionResult(str, Enum):
+    PASS = "PASS"
+    FAIL = "FAIL"
+    NOT_ASSESSED = "NOT_ASSESSED"
+    INCONCLUSIVE = "INCONCLUSIVE"
+
+
+class ActionPlan(Base):
+    __tablename__ = "action_plans"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    investigation_id: Mapped[int] = mapped_column(ForeignKey("investigations.id", ondelete="CASCADE"), nullable=False, index=True)
+    hypothesis_id: Mapped[Optional[int]] = mapped_column(ForeignKey("hypotheses.id", ondelete="SET NULL"), nullable=True, index=True)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    rationale: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(String(50), nullable=False, default=ActionStatus.PLANNED.value, index=True)
+    priority: Mapped[str] = mapped_column(String(50), nullable=False, default=ActionPriority.MEDIUM.value)
+    responsible_person: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    planned_start_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    target_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_by: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    investigation: Mapped[Investigation] = relationship(back_populates="actions")
+    hypothesis: Mapped[Optional[Hypothesis]] = relationship(back_populates="actions")
+    creator: Mapped[User] = relationship()
+    criteria: Mapped[list["ActionCriterion"]] = relationship(back_populates="action", cascade="all, delete-orphan")
+    evidence_links: Mapped[list["ActionEvidence"]] = relationship(back_populates="action", cascade="all, delete-orphan")
+    observation_links: Mapped[list["ActionObservation"]] = relationship(back_populates="action", cascade="all, delete-orphan")
+    verifications: Mapped[list["ActionVerification"]] = relationship(back_populates="action", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        Index("ix_action_plans_investigation_created", "investigation_id", "created_at"),
+    )
+
+
+class ActionCriterion(Base):
+    __tablename__ = "action_criteria"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    action_id: Mapped[int] = mapped_column(ForeignKey("action_plans.id", ondelete="CASCADE"), nullable=False, index=True)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    measurement_type: Mapped[str] = mapped_column(String(50), nullable=False, default=MeasurementType.OBSERVATION.value)
+    target_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    target_unit: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    comparison_operator: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    action: Mapped[ActionPlan] = relationship(back_populates="criteria")
+
+
+class ActionEvidence(Base):
+    __tablename__ = "action_evidence"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    action_id: Mapped[int] = mapped_column(ForeignKey("action_plans.id", ondelete="CASCADE"), nullable=False, index=True)
+    evidence_id: Mapped[int] = mapped_column(ForeignKey("evidence.id", ondelete="CASCADE"), nullable=False, index=True)
+    relationship_type: Mapped[str] = mapped_column(String(50), nullable=False, default=ActionRelationshipType.BEFORE_ACTION.value)
+    note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    action: Mapped[ActionPlan] = relationship(back_populates="evidence_links")
+    evidence: Mapped[Evidence] = relationship(back_populates="action_links")
+
+    __table_args__ = (
+        UniqueConstraint("action_id", "evidence_id", name="uq_action_evidence"),
+    )
+
+
+class ActionObservation(Base):
+    __tablename__ = "action_observations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    action_id: Mapped[int] = mapped_column(ForeignKey("action_plans.id", ondelete="CASCADE"), nullable=False, index=True)
+    observation_id: Mapped[int] = mapped_column(ForeignKey("observations.id", ondelete="CASCADE"), nullable=False, index=True)
+    relationship_type: Mapped[str] = mapped_column(String(50), nullable=False, default=ActionRelationshipType.BEFORE_ACTION.value)
+    note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    action: Mapped[ActionPlan] = relationship(back_populates="observation_links")
+    observation: Mapped[Observation] = relationship(back_populates="action_links")
+
+    __table_args__ = (
+        UniqueConstraint("action_id", "observation_id", name="uq_action_observation"),
+    )
+
+
+class ActionVerification(Base):
+    __tablename__ = "action_verifications"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    action_id: Mapped[int] = mapped_column(ForeignKey("action_plans.id", ondelete="CASCADE"), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(50), nullable=False, default=VerificationStatus.PENDING.value)
+    summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    verified_by: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True)
+    verified_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    uncertainty_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    action: Mapped[ActionPlan] = relationship(back_populates="verifications")
+    verifier: Mapped[User] = relationship()
+    criterion_results: Mapped[list["ActionVerificationResult"]] = relationship(back_populates="verification", cascade="all, delete-orphan")
+
+
+class ActionVerificationResult(Base):
+    __tablename__ = "action_verification_results"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    verification_id: Mapped[int] = mapped_column(ForeignKey("action_verifications.id", ondelete="CASCADE"), nullable=False, index=True)
+    criterion_id: Mapped[int] = mapped_column(ForeignKey("action_criteria.id", ondelete="CASCADE"), nullable=False, index=True)
+    result: Mapped[str] = mapped_column(String(50), nullable=False, default=CriterionResult.NOT_ASSESSED.value)
+    observed_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    observed_unit: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    evaluation_mode: Mapped[str] = mapped_column(String(50), nullable=False, default="investigator_recorded")
+
+    verification: Mapped[ActionVerification] = relationship(back_populates="criterion_results")
+    criterion: Mapped[ActionCriterion] = relationship()
+
+    __table_args__ = (
+        UniqueConstraint("verification_id", "criterion_id", name="uq_verification_criterion"),
+    )

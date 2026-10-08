@@ -1016,3 +1016,364 @@ export const hypothesesApi = {
   },
 };
 
+// ============================================================
+// Phase 8C: Remediation & Action Verification Types & API
+// ============================================================
+
+export type ActionPlanStatus =
+  | 'PLANNED'
+  | 'IN_PROGRESS'
+  | 'COMPLETED'
+  | 'CANCELLED'
+  | 'VERIFICATION_PENDING'
+  | 'VERIFIED'
+  | 'PARTIALLY_VERIFIED'
+  | 'NOT_VERIFIED';
+
+export type ActionPlanPriority = 'LOW' | 'MEDIUM' | 'HIGH';
+
+export type MeasurementType = 'OBSERVATION' | 'NUMERIC' | 'BOOLEAN' | 'TEXT';
+
+export type ComparisonOperator = 'LT' | 'LTE' | 'EQ' | 'GTE' | 'GT';
+
+export type ActionRelationshipType =
+  | 'BEFORE_ACTION'
+  | 'DURING_ACTION'
+  | 'AFTER_ACTION'
+  | 'VERIFICATION';
+
+export type VerificationStatus =
+  | 'PENDING'
+  | 'VERIFIED'
+  | 'PARTIALLY_VERIFIED'
+  | 'NOT_VERIFIED'
+  | 'INCONCLUSIVE';
+
+export type CriterionResultStatus = 'PASS' | 'FAIL' | 'NOT_ASSESSED' | 'INCONCLUSIVE';
+
+export interface ActionCriterion {
+  id: number;
+  action_id: number;
+  description: string;
+  measurement_type: MeasurementType;
+  target_value: number | null;
+  target_unit: string | null;
+  comparison_operator: ComparisonOperator | null;
+  created_at: string;
+}
+
+export interface CreateActionCriterionPayload {
+  description: string;
+  measurement_type?: MeasurementType;
+  target_value?: number | null;
+  target_unit?: string | null;
+  comparison_operator?: ComparisonOperator | null;
+}
+
+export interface UpdateActionCriterionPayload {
+  description?: string;
+  measurement_type?: MeasurementType;
+  target_value?: number | null;
+  target_unit?: string | null;
+  comparison_operator?: ComparisonOperator | null;
+}
+
+export interface ActionEvidenceLink {
+  id: number;
+  action_id: number;
+  evidence_id: number;
+  relationship_type: ActionRelationshipType;
+  note: string | null;
+  created_at: string;
+  evidence?: Evidence;
+}
+
+export interface LinkActionEvidencePayload {
+  evidence_id: number;
+  relationship_type: ActionRelationshipType;
+  note?: string | null;
+}
+
+export interface ActionObservationLink {
+  id: number;
+  action_id: number;
+  observation_id: number;
+  relationship_type: ActionRelationshipType;
+  note: string | null;
+  created_at: string;
+  observation?: Observation;
+}
+
+export interface LinkActionObservationPayload {
+  observation_id: number;
+  relationship_type: ActionRelationshipType;
+  note?: string | null;
+}
+
+export interface ActionVerificationResult {
+  id: number;
+  verification_id: number;
+  criterion_id: number;
+  result: CriterionResultStatus;
+  observed_value: number | null;
+  observed_unit: string | null;
+  note: string | null;
+  evaluation_mode: string;
+  criterion?: ActionCriterion;
+}
+
+export interface ActionVerification {
+  id: number;
+  action_id: number;
+  status: VerificationStatus;
+  summary: string | null;
+  verified_by: number;
+  verified_at: string;
+  uncertainty_notes: string | null;
+  verifier_name?: string | null;
+  criterion_results: ActionVerificationResult[];
+}
+
+export interface CriterionResultInputPayload {
+  criterion_id: number;
+  result?: CriterionResultStatus | null;
+  observed_value?: number | null;
+  observed_unit?: string | null;
+  note?: string | null;
+}
+
+export interface RecordVerificationPayload {
+  summary?: string | null;
+  status?: VerificationStatus | null;
+  uncertainty_notes?: string | null;
+  criterion_results: CriterionResultInputPayload[];
+}
+
+export interface ActionPlan {
+  id: number;
+  investigation_id: number;
+  hypothesis_id: number | null;
+  title: string;
+  description: string | null;
+  rationale: string | null;
+  status: ActionPlanStatus;
+  priority: ActionPlanPriority;
+  responsible_person: string | null;
+  planned_start_date: string | null;
+  target_date: string | null;
+  created_by: number;
+  created_at: string;
+  updated_at: string;
+  criteria_count: number;
+  evidence_count: number;
+  observation_count: number;
+  latest_verification_status: VerificationStatus | null;
+}
+
+export interface ActionDetail extends ActionPlan {
+  criteria: ActionCriterion[];
+  evidence_links: ActionEvidenceLink[];
+  observation_links: ActionObservationLink[];
+  verifications: ActionVerification[];
+  hypothesis_title?: string | null;
+}
+
+export interface CreateActionPayload {
+  title: string;
+  description?: string | null;
+  rationale?: string | null;
+  hypothesis_id?: number | null;
+  priority?: ActionPlanPriority;
+  responsible_person?: string | null;
+  planned_start_date?: string | null;
+  target_date?: string | null;
+}
+
+export interface UpdateActionPayload {
+  title?: string;
+  description?: string | null;
+  rationale?: string | null;
+  hypothesis_id?: number | null;
+  status?: ActionPlanStatus;
+  priority?: ActionPlanPriority;
+  responsible_person?: string | null;
+  planned_start_date?: string | null;
+  target_date?: string | null;
+}
+
+export const actionsApi = {
+  async list(
+    investigationId: number,
+    statusFilter?: string,
+    priorityFilter?: string
+  ): Promise<ActionPlan[]> {
+    const params = new URLSearchParams();
+    if (statusFilter) params.append('status', statusFilter);
+    if (priorityFilter) params.append('priority', priorityFilter);
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    return apiFetch<ActionPlan[]>(`/api/v1/investigations/${investigationId}/actions${qs}`);
+  },
+
+  async get(investigationId: number, actionId: number): Promise<ActionDetail> {
+    return apiFetch<ActionDetail>(`/api/v1/investigations/${investigationId}/actions/${actionId}`);
+  },
+
+  async create(investigationId: number, payload: CreateActionPayload): Promise<ActionDetail> {
+    return apiFetch<ActionDetail>(`/api/v1/investigations/${investigationId}/actions`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async update(
+    investigationId: number,
+    actionId: number,
+    payload: UpdateActionPayload
+  ): Promise<ActionDetail> {
+    return apiFetch<ActionDetail>(`/api/v1/investigations/${investigationId}/actions/${actionId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async delete(investigationId: number, actionId: number): Promise<void> {
+    return apiFetch<void>(`/api/v1/investigations/${investigationId}/actions/${actionId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  async listCriteria(investigationId: number, actionId: number): Promise<ActionCriterion[]> {
+    return apiFetch<ActionCriterion[]>(
+      `/api/v1/investigations/${investigationId}/actions/${actionId}/criteria`
+    );
+  },
+
+  async addCriterion(
+    investigationId: number,
+    actionId: number,
+    payload: CreateActionCriterionPayload
+  ): Promise<ActionCriterion> {
+    return apiFetch<ActionCriterion>(
+      `/api/v1/investigations/${investigationId}/actions/${actionId}/criteria`,
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }
+    );
+  },
+
+  async updateCriterion(
+    investigationId: number,
+    actionId: number,
+    criterionId: number,
+    payload: UpdateActionCriterionPayload
+  ): Promise<ActionCriterion> {
+    return apiFetch<ActionCriterion>(
+      `/api/v1/investigations/${investigationId}/actions/${actionId}/criteria/${criterionId}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      }
+    );
+  },
+
+  async deleteCriterion(
+    investigationId: number,
+    actionId: number,
+    criterionId: number
+  ): Promise<void> {
+    return apiFetch<void>(
+      `/api/v1/investigations/${investigationId}/actions/${actionId}/criteria/${criterionId}`,
+      { method: 'DELETE' }
+    );
+  },
+
+  async listEvidence(investigationId: number, actionId: number): Promise<ActionEvidenceLink[]> {
+    return apiFetch<ActionEvidenceLink[]>(
+      `/api/v1/investigations/${investigationId}/actions/${actionId}/evidence`
+    );
+  },
+
+  async linkEvidence(
+    investigationId: number,
+    actionId: number,
+    payload: LinkActionEvidencePayload
+  ): Promise<ActionEvidenceLink> {
+    return apiFetch<ActionEvidenceLink>(
+      `/api/v1/investigations/${investigationId}/actions/${actionId}/evidence`,
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }
+    );
+  },
+
+  async unlinkEvidence(
+    investigationId: number,
+    actionId: number,
+    evidenceId: number
+  ): Promise<void> {
+    return apiFetch<void>(
+      `/api/v1/investigations/${investigationId}/actions/${actionId}/evidence/${evidenceId}`,
+      { method: 'DELETE' }
+    );
+  },
+
+  async listObservations(
+    investigationId: number,
+    actionId: number
+  ): Promise<ActionObservationLink[]> {
+    return apiFetch<ActionObservationLink[]>(
+      `/api/v1/investigations/${investigationId}/actions/${actionId}/observations`
+    );
+  },
+
+  async linkObservation(
+    investigationId: number,
+    actionId: number,
+    payload: LinkActionObservationPayload
+  ): Promise<ActionObservationLink> {
+    return apiFetch<ActionObservationLink>(
+      `/api/v1/investigations/${investigationId}/actions/${actionId}/observations`,
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }
+    );
+  },
+
+  async unlinkObservation(
+    investigationId: number,
+    actionId: number,
+    observationId: number
+  ): Promise<void> {
+    return apiFetch<void>(
+      `/api/v1/investigations/${investigationId}/actions/${actionId}/observations/${observationId}`,
+      { method: 'DELETE' }
+    );
+  },
+
+  async recordVerification(
+    investigationId: number,
+    actionId: number,
+    payload: RecordVerificationPayload
+  ): Promise<ActionVerification> {
+    return apiFetch<ActionVerification>(
+      `/api/v1/investigations/${investigationId}/actions/${actionId}/verify`,
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }
+    );
+  },
+
+  async listVerifications(
+    investigationId: number,
+    actionId: number
+  ): Promise<ActionVerification[]> {
+    return apiFetch<ActionVerification[]>(
+      `/api/v1/investigations/${investigationId}/actions/${actionId}/verifications`
+    );
+  },
+};
+

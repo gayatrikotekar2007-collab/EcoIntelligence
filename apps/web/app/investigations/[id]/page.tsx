@@ -9,6 +9,7 @@ import { AppShell } from '../../../components/AppShell';
 import { EvidenceSection } from '../../../components/EvidenceSection';
 import { EvidenceGapsCard } from '../../../components/EvidenceGapsCard';
 import { HypothesisWorkspace } from '../../../components/HypothesisWorkspace';
+import { ActionVerificationWorkspace } from '../../../components/ActionVerificationWorkspace';
 import {
   investigationsApi,
   InvestigationDetail,
@@ -490,7 +491,16 @@ export default function InvestigationDetailPage({ params }: PageProps) {
             onHypothesisChanged={loadInvestigation}
           />
 
-          {/* 5. Investigation Audit Timeline */}
+          {/* 5. Remediation & Action Verification Workspace (Phase 8C) */}
+          <ActionVerificationWorkspace
+            investigationId={investigation.id}
+            evidenceList={investigation.evidence || []}
+            observationsList={investigation.observations || []}
+            timelineEntries={investigation.timeline_entries || []}
+            onActionChanged={loadInvestigation}
+          />
+
+          {/* 6. Investigation Audit Timeline */}
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs">
             <h2 className="text-base font-bold text-slate-900 flex items-center gap-2 mb-1">
               <ActivityIcon className="h-5 w-5 text-emerald-600" />
