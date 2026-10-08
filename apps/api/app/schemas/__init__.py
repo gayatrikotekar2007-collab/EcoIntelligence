@@ -1,3 +1,17 @@
+from app.schemas.hypothesis import (
+    HypothesisBase,
+    HypothesisCreate,
+    HypothesisDetailRead,
+    HypothesisEvidenceCreate,
+    HypothesisEvidenceRead,
+    HypothesisObservationCreate,
+    HypothesisObservationRead,
+    HypothesisRead,
+    HypothesisUpdate,
+    MissingEvidenceCreate,
+    MissingEvidenceRead,
+    MissingEvidenceUpdate,
+)
 from app.schemas.investigation import (
     GeoJSONFeature,
     GeoJSONFeatureCollection,
@@ -41,4 +55,17 @@ __all__ = [
     "EvidenceUpdate",
     "EvidenceGap",
     "EvidenceGapsResponse",
+    "HypothesisBase",
+    "HypothesisCreate",
+    "HypothesisUpdate",
+    "HypothesisRead",
+    "HypothesisDetailRead",
+    "HypothesisEvidenceCreate",
+    "HypothesisEvidenceRead",
+    "HypothesisObservationCreate",
+    "HypothesisObservationRead",
+    "MissingEvidenceCreate",
+    "MissingEvidenceUpdate",
+    "MissingEvidenceRead",
 ]
+

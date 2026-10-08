@@ -89,6 +89,7 @@ class User(Base):
     )
 
     investigations: Mapped[list["Investigation"]] = relationship(back_populates="owner")
+    hypotheses: Mapped[list["Hypothesis"]] = relationship(back_populates="creator")
 
 
 class Location(Base):
@@ -142,6 +143,7 @@ class Investigation(Base):
     observations: Mapped[list["Observation"]] = relationship(back_populates="investigation", cascade="save-update, merge")
     evidence: Mapped[list["Evidence"]] = relationship(back_populates="investigation", cascade="save-update, merge")
     timeline_entries: Mapped[list["TimelineEntry"]] = relationship(back_populates="investigation", cascade="save-update, merge")
+    hypotheses: Mapped[list["Hypothesis"]] = relationship(back_populates="investigation", cascade="save-update, merge")
 
     __table_args__ = (
         Index("ix_investigations_owner_status_created", "owner_id", "status", "created_at"),
@@ -173,6 +175,7 @@ class Observation(Base):
     investigation: Mapped[Investigation] = relationship(back_populates="observations")
     location: Mapped[Optional[Location]] = relationship(back_populates="observations")
     evidence: Mapped[list["Evidence"]] = relationship(back_populates="observation", cascade="save-update, merge")
+    hypothesis_links: Mapped[list["HypothesisObservation"]] = relationship(back_populates="observation", cascade="save-update, merge")
 
     __table_args__ = (
         CheckConstraint("confidence BETWEEN 0 AND 100", name="ck_observations_confidence_range"),
@@ -199,6 +202,7 @@ class Evidence(Base):
     investigation: Mapped[Investigation] = relationship(back_populates="evidence")
     observation: Mapped[Optional[Observation]] = relationship(back_populates="evidence")
     location: Mapped[Optional[Location]] = relationship(back_populates="evidence")
+    hypothesis_links: Mapped[list["HypothesisEvidence"]] = relationship(back_populates="evidence", cascade="save-update, merge")
 
     @property
     def parsed_metadata(self) -> dict:
@@ -260,3 +264,120 @@ class EnvironmentalEvent(Base):
     __table_args__ = (
         CheckConstraint("confidence BETWEEN 0 AND 100", name="ck_environmental_events_confidence_range"),
     )
+
+
+class HypothesisStatus(str, Enum):
+    OPEN = "OPEN"
+    UNDER_REVIEW = "UNDER_REVIEW"
+    SUPPORTED = "SUPPORTED"
+    WEAKENED = "WEAKENED"
+    REJECTED = "REJECTED"
+    UNRESOLVED = "UNRESOLVED"
+
+
+class HypothesisConfidence(str, Enum):
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+
+
+class HypothesisRelationshipType(str, Enum):
+    SUPPORTS = "SUPPORTS"
+    CONTRADICTS = "CONTRADICTS"
+    CONTEXT = "CONTEXT"
+
+
+class RequirementPriority(str, Enum):
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+
+
+class RequirementStatus(str, Enum):
+    OPEN = "OPEN"
+    COLLECTED = "COLLECTED"
+    NOT_AVAILABLE = "NOT_AVAILABLE"
+    CANCELLED = "CANCELLED"
+
+
+class Hypothesis(Base):
+    __tablename__ = "hypotheses"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    investigation_id: Mapped[int] = mapped_column(ForeignKey("investigations.id", ondelete="CASCADE"), nullable=False, index=True)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(String(50), nullable=False, default=HypothesisStatus.OPEN.value, index=True)
+    confidence: Mapped[str] = mapped_column(String(50), nullable=False, default=HypothesisConfidence.LOW.value)
+    reasoning: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_by: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    investigation: Mapped[Investigation] = relationship(back_populates="hypotheses")
+    creator: Mapped[User] = relationship(back_populates="hypotheses")
+    evidence_links: Mapped[list["HypothesisEvidence"]] = relationship(back_populates="hypothesis", cascade="all, delete-orphan")
+    observation_links: Mapped[list["HypothesisObservation"]] = relationship(back_populates="hypothesis", cascade="all, delete-orphan")
+    missing_evidence: Mapped[list["MissingEvidence"]] = relationship(back_populates="hypothesis", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        Index("ix_hypotheses_investigation_created", "investigation_id", "created_at"),
+    )
+
+
+class HypothesisEvidence(Base):
+    __tablename__ = "hypothesis_evidence"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    hypothesis_id: Mapped[int] = mapped_column(ForeignKey("hypotheses.id", ondelete="CASCADE"), nullable=False, index=True)
+    evidence_id: Mapped[int] = mapped_column(ForeignKey("evidence.id", ondelete="CASCADE"), nullable=False, index=True)
+    relationship_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_by: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    hypothesis: Mapped[Hypothesis] = relationship(back_populates="evidence_links")
+    evidence: Mapped[Evidence] = relationship(back_populates="hypothesis_links")
+
+    __table_args__ = (
+        UniqueConstraint("hypothesis_id", "evidence_id", name="uq_hypothesis_evidence"),
+    )
+
+
+class HypothesisObservation(Base):
+    __tablename__ = "hypothesis_observations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    hypothesis_id: Mapped[int] = mapped_column(ForeignKey("hypotheses.id", ondelete="CASCADE"), nullable=False, index=True)
+    observation_id: Mapped[int] = mapped_column(ForeignKey("observations.id", ondelete="CASCADE"), nullable=False, index=True)
+    relationship_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_by: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    hypothesis: Mapped[Hypothesis] = relationship(back_populates="observation_links")
+    observation: Mapped[Observation] = relationship(back_populates="hypothesis_links")
+
+    __table_args__ = (
+        UniqueConstraint("hypothesis_id", "observation_id", name="uq_hypothesis_observation"),
+    )
+
+
+class MissingEvidence(Base):
+    __tablename__ = "missing_evidence"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    hypothesis_id: Mapped[int] = mapped_column(ForeignKey("hypotheses.id", ondelete="CASCADE"), nullable=False, index=True)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    priority: Mapped[str] = mapped_column(String(50), nullable=False, default=RequirementPriority.MEDIUM.value)
+    status: Mapped[str] = mapped_column(String(50), nullable=False, default=RequirementStatus.OPEN.value)
+    created_by: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    resolved_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    hypothesis: Mapped[Hypothesis] = relationship(back_populates="missing_evidence")

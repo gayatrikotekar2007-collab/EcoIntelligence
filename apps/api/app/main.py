@@ -9,7 +9,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.config import get_settings
 from app.database import engine
 from app.exceptions import handle_http_exception, handle_unexpected_error, handle_validation_error
-from app.routers import auth, evidence, investigations, map, users
+from app.routers import auth, evidence, hypotheses, investigations, map, users
 
 settings = get_settings()
 
@@ -49,6 +49,7 @@ api_prefix = settings.api_v1_prefix
 app.include_router(auth.router, prefix=f"{api_prefix}/auth")
 app.include_router(users.router, prefix=api_prefix)
 app.include_router(investigations.router, prefix=f"{api_prefix}/investigations")
+app.include_router(hypotheses.router, prefix=f"{api_prefix}/investigations")
 app.include_router(evidence.router, prefix=api_prefix)
 app.include_router(map.router, prefix=api_prefix)
 

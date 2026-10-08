@@ -105,6 +105,127 @@ export interface EvidenceGapsResponse {
   gaps: EvidenceGap[];
 }
 
+export type HypothesisStatusType =
+  | 'OPEN'
+  | 'UNDER_REVIEW'
+  | 'SUPPORTED'
+  | 'WEAKENED'
+  | 'REJECTED'
+  | 'UNRESOLVED';
+
+export type HypothesisConfidenceType = 'LOW' | 'MEDIUM' | 'HIGH';
+
+export type HypothesisRelationshipType = 'SUPPORTS' | 'CONTRADICTS' | 'CONTEXT';
+
+export type RequirementPriorityType = 'LOW' | 'MEDIUM' | 'HIGH';
+
+export type RequirementStatusType =
+  | 'OPEN'
+  | 'COLLECTED'
+  | 'NOT_AVAILABLE'
+  | 'CANCELLED';
+
+export interface MissingEvidenceRequirement {
+  id: number;
+  hypothesis_id: number;
+  description: string;
+  priority: RequirementPriorityType;
+  status: RequirementStatusType;
+  created_by?: number | null;
+  created_at: string;
+  resolved_at?: string | null;
+}
+
+export interface HypothesisEvidenceLink {
+  id: number;
+  hypothesis_id: number;
+  evidence_id: number;
+  relationship_type: HypothesisRelationshipType;
+  note?: string | null;
+  created_by?: number | null;
+  created_at: string;
+  evidence?: Evidence;
+}
+
+export interface HypothesisObservationLink {
+  id: number;
+  hypothesis_id: number;
+  observation_id: number;
+  relationship_type: HypothesisRelationshipType;
+  note?: string | null;
+  created_by?: number | null;
+  created_at: string;
+  observation?: Observation;
+}
+
+export interface Hypothesis {
+  id: number;
+  investigation_id: number;
+  title: string;
+  description?: string | null;
+  status: HypothesisStatusType;
+  confidence: HypothesisConfidenceType;
+  reasoning?: string | null;
+  created_by: number;
+  created_at: string;
+  updated_at: string;
+  supporting_evidence_count: number;
+  contradicting_evidence_count: number;
+  context_evidence_count: number;
+  supporting_observation_count: number;
+  contradicting_observation_count: number;
+  context_observation_count: number;
+  missing_evidence_count: number;
+  resolved_missing_evidence_count: number;
+}
+
+export interface HypothesisDetail extends Hypothesis {
+  evidence_links: HypothesisEvidenceLink[];
+  observation_links: HypothesisObservationLink[];
+  missing_evidence: MissingEvidenceRequirement[];
+  timeline_entries: TimelineEntry[];
+}
+
+export interface CreateHypothesisPayload {
+  title: string;
+  description?: string;
+  reasoning?: string;
+  status?: HypothesisStatusType;
+  confidence?: HypothesisConfidenceType;
+}
+
+export interface UpdateHypothesisPayload {
+  title?: string;
+  description?: string;
+  reasoning?: string;
+  status?: HypothesisStatusType;
+  confidence?: HypothesisConfidenceType;
+}
+
+export interface LinkEvidencePayload {
+  evidence_id: number;
+  relationship_type: HypothesisRelationshipType;
+  note?: string;
+}
+
+export interface LinkObservationPayload {
+  observation_id: number;
+  relationship_type: HypothesisRelationshipType;
+  note?: string;
+}
+
+export interface CreateMissingEvidencePayload {
+  description: string;
+  priority?: RequirementPriorityType;
+  status?: RequirementStatusType;
+}
+
+export interface UpdateMissingEvidencePayload {
+  description?: string;
+  priority?: RequirementPriorityType;
+  status?: RequirementStatusType;
+}
+
 export interface BoundingRegion {
   x: number;
   y: number;
@@ -676,3 +797,144 @@ export const mapApi = {
     });
   },
 };
+
+export const hypothesesApi = {
+  async list(investigationId: number): Promise<Hypothesis[]> {
+    return apiFetch<Hypothesis[]>(
+      `/api/v1/investigations/${investigationId}/hypotheses`,
+      { method: 'GET' }
+    );
+  },
+
+  async get(investigationId: number, hypothesisId: number): Promise<HypothesisDetail> {
+    return apiFetch<HypothesisDetail>(
+      `/api/v1/investigations/${investigationId}/hypotheses/${hypothesisId}`,
+      { method: 'GET' }
+    );
+  },
+
+  async create(
+    investigationId: number,
+    payload: CreateHypothesisPayload
+  ): Promise<Hypothesis> {
+    return apiFetch<Hypothesis>(
+      `/api/v1/investigations/${investigationId}/hypotheses`,
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }
+    );
+  },
+
+  async update(
+    investigationId: number,
+    hypothesisId: number,
+    payload: UpdateHypothesisPayload
+  ): Promise<HypothesisDetail> {
+    return apiFetch<HypothesisDetail>(
+      `/api/v1/investigations/${investigationId}/hypotheses/${hypothesisId}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      }
+    );
+  },
+
+  async delete(investigationId: number, hypothesisId: number): Promise<void> {
+    return apiFetch<void>(
+      `/api/v1/investigations/${investigationId}/hypotheses/${hypothesisId}`,
+      { method: 'DELETE' }
+    );
+  },
+
+  async linkEvidence(
+    investigationId: number,
+    hypothesisId: number,
+    payload: LinkEvidencePayload
+  ): Promise<HypothesisEvidenceLink> {
+    return apiFetch<HypothesisEvidenceLink>(
+      `/api/v1/investigations/${investigationId}/hypotheses/${hypothesisId}/evidence`,
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }
+    );
+  },
+
+  async unlinkEvidence(
+    investigationId: number,
+    hypothesisId: number,
+    evidenceId: number
+  ): Promise<void> {
+    return apiFetch<void>(
+      `/api/v1/investigations/${investigationId}/hypotheses/${hypothesisId}/evidence/${evidenceId}`,
+      { method: 'DELETE' }
+    );
+  },
+
+  async linkObservation(
+    investigationId: number,
+    hypothesisId: number,
+    payload: LinkObservationPayload
+  ): Promise<HypothesisObservationLink> {
+    return apiFetch<HypothesisObservationLink>(
+      `/api/v1/investigations/${investigationId}/hypotheses/${hypothesisId}/observations`,
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }
+    );
+  },
+
+  async unlinkObservation(
+    investigationId: number,
+    hypothesisId: number,
+    observationId: number
+  ): Promise<void> {
+    return apiFetch<void>(
+      `/api/v1/investigations/${investigationId}/hypotheses/${hypothesisId}/observations/${observationId}`,
+      { method: 'DELETE' }
+    );
+  },
+
+  async addMissingEvidence(
+    investigationId: number,
+    hypothesisId: number,
+    payload: CreateMissingEvidencePayload
+  ): Promise<MissingEvidenceRequirement> {
+    return apiFetch<MissingEvidenceRequirement>(
+      `/api/v1/investigations/${investigationId}/hypotheses/${hypothesisId}/missing-evidence`,
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }
+    );
+  },
+
+  async updateMissingEvidence(
+    investigationId: number,
+    hypothesisId: number,
+    requirementId: number,
+    payload: UpdateMissingEvidencePayload
+  ): Promise<MissingEvidenceRequirement> {
+    return apiFetch<MissingEvidenceRequirement>(
+      `/api/v1/investigations/${investigationId}/hypotheses/${hypothesisId}/missing-evidence/${requirementId}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      }
+    );
+  },
+
+  async deleteMissingEvidence(
+    investigationId: number,
+    hypothesisId: number,
+    requirementId: number
+  ): Promise<void> {
+    return apiFetch<void>(
+      `/api/v1/investigations/${investigationId}/hypotheses/${hypothesisId}/missing-evidence/${requirementId}`,
+      { method: 'DELETE' }
+    );
+  },
+};
+

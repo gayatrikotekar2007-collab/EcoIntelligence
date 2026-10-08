@@ -8,6 +8,7 @@ import { useAuth } from '../../../lib/auth-context';
 import { AppShell } from '../../../components/AppShell';
 import { EvidenceSection } from '../../../components/EvidenceSection';
 import { EvidenceGapsCard } from '../../../components/EvidenceGapsCard';
+import { HypothesisWorkspace } from '../../../components/HypothesisWorkspace';
 import {
   investigationsApi,
   InvestigationDetail,
@@ -481,7 +482,15 @@ export default function InvestigationDetailPage({ params }: PageProps) {
             onEvidenceChanged={loadInvestigation}
           />
 
-          {/* 4. Investigation Audit Timeline */}
+          {/* 4. Root-Cause Hypotheses Workspace (Phase 8A) */}
+          <HypothesisWorkspace
+            investigationId={investigation.id}
+            evidenceList={investigation.evidence || []}
+            observationsList={investigation.observations || []}
+            onHypothesisChanged={loadInvestigation}
+          />
+
+          {/* 5. Investigation Audit Timeline */}
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs">
             <h2 className="text-base font-bold text-slate-900 flex items-center gap-2 mb-1">
               <ActivityIcon className="h-5 w-5 text-emerald-600" />
