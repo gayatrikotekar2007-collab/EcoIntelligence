@@ -30,9 +30,11 @@ Covers:
 26. Inconclusive assessment verification
 27. Investigator-recorded evaluation for qualitative criteria
 28. Evaluation mode tracking (numeric_comparison vs investigator_recorded)
-29. Verification updates Action status
+29. Verification does NOT modify Action status (Action lifecycle and Verification outcome separated)
 30. Criterion from another action rejected during verification (400)
 31. Timeline events recorded with neutral language
+32. Repeated verification preserves Action status throughout
+33. ActionPlan status strictly limited to lifecycle enum
 """
 
 import io
@@ -510,6 +512,15 @@ def test_13_deterministic_verification_all_pass():
     res_act = client.post(f"/api/v1/investigations/{inv_id}/actions", headers=headers, json={"title": "Silt Barrier Verification"})
     act_id = res_act.json()["id"]
 
+    # Mark action status as COMPLETED
+    res_patch = client.patch(
+        f"/api/v1/investigations/{inv_id}/actions/{act_id}",
+        headers=headers,
+        json={"status": "COMPLETED"},
+    )
+    assert res_patch.status_code == 200
+    assert res_patch.json()["status"] == "COMPLETED"
+
     # Target: Turbidity LTE 10.0 NTU
     res_c1 = client.post(
         f"/api/v1/investigations/{inv_id}/actions/{act_id}/criteria",
@@ -547,9 +558,9 @@ def test_13_deterministic_verification_all_pass():
     assert c_res["evaluation_mode"] == "numeric_comparison"
     assert c_res["observed_value"] == 8.0
 
-    # Action status should be updated to VERIFIED
+    # Verification must NOT alter Action status: Action = COMPLETED, Verification = VERIFIED
     res_act_after = client.get(f"/api/v1/investigations/{inv_id}/actions/{act_id}", headers=headers)
-    assert res_act_after.json()["status"] == "VERIFIED"
+    assert res_act_after.json()["status"] == "COMPLETED"
     assert res_act_after.json()["latest_verification_status"] == "VERIFIED"
 
 
@@ -560,6 +571,15 @@ def test_14_deterministic_verification_fail():
 
     res_act = client.post(f"/api/v1/investigations/{inv_id}/actions", headers=headers, json={"title": "Action Fail Test"})
     act_id = res_act.json()["id"]
+
+    # Mark action status as COMPLETED
+    res_patch = client.patch(
+        f"/api/v1/investigations/{inv_id}/actions/{act_id}",
+        headers=headers,
+        json={"status": "COMPLETED"},
+    )
+    assert res_patch.status_code == 200
+    assert res_patch.json()["status"] == "COMPLETED"
 
     # Target: Turbidity LTE 10.0 NTU
     res_c1 = client.post(
@@ -592,6 +612,11 @@ def test_14_deterministic_verification_fail():
     assert v_data["status"] == "NOT_VERIFIED"
     assert v_data["criterion_results"][0]["result"] == "FAIL"
     assert v_data["criterion_results"][0]["evaluation_mode"] == "numeric_comparison"
+
+    # Action = COMPLETED, Verification = NOT_VERIFIED
+    res_act_after = client.get(f"/api/v1/investigations/{inv_id}/actions/{act_id}", headers=headers)
+    assert res_act_after.json()["status"] == "COMPLETED"
+    assert res_act_after.json()["latest_verification_status"] == "NOT_VERIFIED"
 
 
 def test_15_deterministic_verification_partial_mix():
@@ -751,6 +776,15 @@ def test_19_inconclusive_verification():
         json={"title": "Action Inconclusive Test"},
     ).json()["id"]
 
+    # Mark action status as COMPLETED
+    res_patch = client.patch(
+        f"/api/v1/investigations/{inv_id}/actions/{act_id}",
+        headers=headers,
+        json={"status": "COMPLETED"},
+    )
+    assert res_patch.status_code == 200
+    assert res_patch.json()["status"] == "COMPLETED"
+
     crit_id = client.post(
         f"/api/v1/investigations/{inv_id}/actions/{act_id}/criteria",
         headers=headers,
@@ -768,6 +802,11 @@ def test_19_inconclusive_verification():
     )
     assert res_ver.status_code == 201
     assert res_ver.json()["status"] == "INCONCLUSIVE"
+
+    # Action = COMPLETED, Verification = INCONCLUSIVE
+    res_act_after = client.get(f"/api/v1/investigations/{inv_id}/actions/{act_id}", headers=headers)
+    assert res_act_after.json()["status"] == "COMPLETED"
+    assert res_act_after.json()["latest_verification_status"] == "INCONCLUSIVE"
 
 
 def test_20_investigator_explicit_override_status():
@@ -837,3 +876,106 @@ def test_22_empty_action_title_rejected():
         json={"title": "   ", "rationale": "Empty title test"},
     )
     assert res.status_code == 422
+
+
+def test_23_repeated_verification_action_status_remains_completed():
+    token, _, _ = register_user()
+    inv_id = create_investigation(token)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    res_act = client.post(
+        f"/api/v1/investigations/{inv_id}/actions",
+        headers=headers,
+        json={"title": "Repeated Verification Test"},
+    )
+    act_id = res_act.json()["id"]
+
+    # Set Action status to COMPLETED
+    res_patch = client.patch(
+        f"/api/v1/investigations/{inv_id}/actions/{act_id}",
+        headers=headers,
+        json={"status": "COMPLETED"},
+    )
+    assert res_patch.status_code == 200
+    assert res_patch.json()["status"] == "COMPLETED"
+
+    # Add numeric criterion (Turbidity LTE 10.0 NTU)
+    res_crit = client.post(
+        f"/api/v1/investigations/{inv_id}/actions/{act_id}/criteria",
+        headers=headers,
+        json={
+            "description": "Turbidity LTE 10 NTU",
+            "measurement_type": "NUMERIC",
+            "target_value": 10.0,
+            "target_unit": "NTU",
+            "comparison_operator": "LTE",
+        },
+    )
+    crit_id = res_crit.json()["id"]
+
+    # Verification #1: NOT_VERIFIED (observed 18.0 NTU > 10.0)
+    res_ver1 = client.post(
+        f"/api/v1/investigations/{inv_id}/actions/{act_id}/verify",
+        headers=headers,
+        json={
+            "summary": "Initial verification failed: turbidity too high.",
+            "criterion_results": [{"criterion_id": crit_id, "observed_value": 18.0, "observed_unit": "NTU"}],
+        },
+    )
+    assert res_ver1.status_code == 201
+    assert res_ver1.json()["status"] == "NOT_VERIFIED"
+
+    # Action must remain COMPLETED after verification #1
+    act_after_v1 = client.get(f"/api/v1/investigations/{inv_id}/actions/{act_id}", headers=headers).json()
+    assert act_after_v1["status"] == "COMPLETED"
+    assert act_after_v1["latest_verification_status"] == "NOT_VERIFIED"
+
+    # Verification #2: VERIFIED (observed 6.5 NTU <= 10.0)
+    res_ver2 = client.post(
+        f"/api/v1/investigations/{inv_id}/actions/{act_id}/verify",
+        headers=headers,
+        json={
+            "summary": "Follow-up verification passed: turbidity within threshold.",
+            "criterion_results": [{"criterion_id": crit_id, "observed_value": 6.5, "observed_unit": "NTU"}],
+        },
+    )
+    assert res_ver2.status_code == 201
+    assert res_ver2.json()["status"] == "VERIFIED"
+
+    # Action must STILL remain COMPLETED after verification #2
+    act_after_v2 = client.get(f"/api/v1/investigations/{inv_id}/actions/{act_id}", headers=headers).json()
+    assert act_after_v2["status"] == "COMPLETED"
+    assert act_after_v2["latest_verification_status"] == "VERIFIED"
+    assert len(act_after_v2["verifications"]) == 2
+
+
+def test_24_action_plan_status_restricted_enum():
+    token, _, _ = register_user()
+    inv_id = create_investigation(token)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    res_act = client.post(
+        f"/api/v1/investigations/{inv_id}/actions",
+        headers=headers,
+        json={"title": "Status Validation Test"},
+    )
+    act_id = res_act.json()["id"]
+
+    # Valid statuses must succeed
+    for valid_st in ["PLANNED", "IN_PROGRESS", "COMPLETED", "CANCELLED", "VERIFICATION_PENDING"]:
+        res = client.patch(
+            f"/api/v1/investigations/{inv_id}/actions/{act_id}",
+            headers=headers,
+            json={"status": valid_st},
+        )
+        assert res.status_code == 200
+        assert res.json()["status"] == valid_st
+
+    # Obsolete / non-lifecycle statuses must fail validation (422)
+    for invalid_st in ["VERIFIED", "PARTIALLY_VERIFIED", "NOT_VERIFIED", "UNKNOWN_STATUS"]:
+        res_bad = client.patch(
+            f"/api/v1/investigations/{inv_id}/actions/{act_id}",
+            headers=headers,
+            json={"status": invalid_st},
+        )
+        assert res_bad.status_code == 422

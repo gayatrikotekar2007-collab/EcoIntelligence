@@ -1025,10 +1025,7 @@ export type ActionPlanStatus =
   | 'IN_PROGRESS'
   | 'COMPLETED'
   | 'CANCELLED'
-  | 'VERIFICATION_PENDING'
-  | 'VERIFIED'
-  | 'PARTIALLY_VERIFIED'
-  | 'NOT_VERIFIED';
+  | 'VERIFICATION_PENDING';
 
 export type ActionPlanPriority = 'LOW' | 'MEDIUM' | 'HIGH';
 

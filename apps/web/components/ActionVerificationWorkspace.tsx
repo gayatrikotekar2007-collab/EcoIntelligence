@@ -466,12 +466,6 @@ export function ActionVerificationWorkspace({
         return 'bg-gray-100 text-gray-500 border-gray-200 line-through';
       case 'VERIFICATION_PENDING':
         return 'bg-amber-50 text-amber-800 border-amber-200';
-      case 'VERIFIED':
-        return 'bg-emerald-50 text-emerald-800 border-emerald-200';
-      case 'PARTIALLY_VERIFIED':
-        return 'bg-yellow-50 text-yellow-800 border-yellow-200';
-      case 'NOT_VERIFIED':
-        return 'bg-rose-50 text-rose-800 border-rose-200';
       default:
         return 'bg-slate-100 text-slate-700 border-slate-200';
     }
@@ -598,10 +592,8 @@ export function ActionVerificationWorkspace({
           { key: 'PLANNED', label: 'Planned' },
           { key: 'IN_PROGRESS', label: 'In Progress' },
           { key: 'COMPLETED', label: 'Completed' },
+          { key: 'CANCELLED', label: 'Cancelled' },
           { key: 'VERIFICATION_PENDING', label: 'Verification Pending' },
-          { key: 'VERIFIED', label: 'Verified' },
-          { key: 'PARTIALLY_VERIFIED', label: 'Partially Verified' },
-          { key: 'NOT_VERIFIED', label: 'Not Verified' },
         ].map((f) => (
           <button
             key={f.key}

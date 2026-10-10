@@ -892,11 +892,7 @@ def record_verification(
         )
         db.add(crit_res)
 
-    # 3. Update action status to match verification status
-    action.status = final_status
-    action.updated_at = now
-
-    # 4. Factual, neutral timeline event
+    # 3. Factual, neutral timeline event
     timeline = TimelineEntry(
         investigation_id=investigation.id,
         event_type="action_verification_recorded",
