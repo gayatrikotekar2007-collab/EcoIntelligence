@@ -979,3 +979,152 @@ def test_24_action_plan_status_restricted_enum():
             json={"status": invalid_st},
         )
         assert res_bad.status_code == 422
+
+
+# ----------------------------------------------------------------------
+# 8. Action Hypothesis Linking & Unlinking (Phase 8D)
+# ----------------------------------------------------------------------
+
+def test_25_patch_action_omitted_hypothesis_id_preserves_link():
+    token, _, _ = register_user()
+    inv_id = create_investigation(token)
+    hypo_id = create_hypothesis(token, inv_id, "Hypothesis to be linked")
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # Create action linked to hypothesis
+    res_act = client.post(
+        f"/api/v1/investigations/{inv_id}/actions",
+        headers=headers,
+        json={"title": "Action with Hypothesis", "hypothesis_id": hypo_id},
+    )
+    assert res_act.status_code == 201
+    act_id = res_act.json()["id"]
+    assert res_act.json()["hypothesis_id"] == hypo_id
+
+    # Update title without mentioning hypothesis_id (omitted)
+    res_patch = client.patch(
+        f"/api/v1/investigations/{inv_id}/actions/{act_id}",
+        headers=headers,
+        json={"title": "Action with Title Updated Only"},
+    )
+    assert res_patch.status_code == 200
+    data = res_patch.json()
+    assert data["title"] == "Action with Title Updated Only"
+    assert data["hypothesis_id"] == hypo_id
+    assert data["hypothesis_title"] == "Hypothesis to be linked"
+
+
+def test_26_patch_action_explicit_null_hypothesis_id_unlinks():
+    token, _, _ = register_user()
+    inv_id = create_investigation(token)
+    hypo_id = create_hypothesis(token, inv_id, "Hypothesis to be unlinked")
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # Create action linked to hypothesis
+    res_act = client.post(
+        f"/api/v1/investigations/{inv_id}/actions",
+        headers=headers,
+        json={"title": "Action Linked", "hypothesis_id": hypo_id},
+    )
+    assert res_act.status_code == 201
+    act_id = res_act.json()["id"]
+    assert res_act.json()["hypothesis_id"] == hypo_id
+
+    # Explicitly pass hypothesis_id: null to unlink
+    res_patch = client.patch(
+        f"/api/v1/investigations/{inv_id}/actions/{act_id}",
+        headers=headers,
+        json={"hypothesis_id": None},
+    )
+    assert res_patch.status_code == 200
+    data = res_patch.json()
+    assert data["hypothesis_id"] is None
+    assert data.get("hypothesis_title") is None
+
+    # Verify detail GET also shows unlinked state
+    res_get = client.get(f"/api/v1/investigations/{inv_id}/actions/{act_id}", headers=headers)
+    assert res_get.status_code == 200
+    assert res_get.json()["hypothesis_id"] is None
+    assert res_get.json().get("hypothesis_title") is None
+
+
+def test_27_patch_action_link_valid_same_investigation_hypothesis():
+    token, _, _ = register_user()
+    inv_id = create_investigation(token)
+    hypo_id = create_hypothesis(token, inv_id, "New Hypothesis to Link")
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # Create unlinked action
+    res_act = client.post(
+        f"/api/v1/investigations/{inv_id}/actions",
+        headers=headers,
+        json={"title": "Unlinked Action initially"},
+    )
+    assert res_act.status_code == 201
+    act_id = res_act.json()["id"]
+    assert res_act.json()["hypothesis_id"] is None
+
+    # Link hypothesis in PATCH
+    res_patch = client.patch(
+        f"/api/v1/investigations/{inv_id}/actions/{act_id}",
+        headers=headers,
+        json={"hypothesis_id": hypo_id},
+    )
+    assert res_patch.status_code == 200
+    data = res_patch.json()
+    assert data["hypothesis_id"] == hypo_id
+    assert data["hypothesis_title"] == "New Hypothesis to Link"
+
+
+def test_28_patch_action_cross_investigation_hypothesis_rejected():
+    token, _, _ = register_user()
+    inv_1 = create_investigation(token, "Investigation 1")
+    inv_2 = create_investigation(token, "Investigation 2")
+    hypo_in_2 = create_hypothesis(token, inv_2, "Hypo in Inv 2")
+    headers = {"Authorization": f"Bearer {token}"}
+
+    res_act = client.post(
+        f"/api/v1/investigations/{inv_1}/actions",
+        headers=headers,
+        json={"title": "Action in Inv 1"},
+    )
+    act_id = res_act.json()["id"]
+
+    # Attempt to link hypothesis from Inv 2 via PATCH
+    res_bad = client.patch(
+        f"/api/v1/investigations/{inv_1}/actions/{act_id}",
+        headers=headers,
+        json={"hypothesis_id": hypo_in_2},
+    )
+    assert res_bad.status_code == 400
+    assert "Hypothesis does not belong to this investigation" in res_bad.json()["detail"]
+
+
+def test_29_patch_action_unauthenticated_and_unauthorized_protected():
+    token_owner, _, _ = register_user("Action Owner")
+    token_attacker, _, _ = register_user("Action Attacker")
+    inv_id = create_investigation(token_owner)
+    headers_owner = {"Authorization": f"Bearer {token_owner}"}
+    headers_attacker = {"Authorization": f"Bearer {token_attacker}"}
+
+    res_act = client.post(
+        f"/api/v1/investigations/{inv_id}/actions",
+        headers=headers_owner,
+        json={"title": "Owner Action"},
+    )
+    act_id = res_act.json()["id"]
+
+    # Unauthenticated PATCH rejected (401)
+    res_unauth = client.patch(
+        f"/api/v1/investigations/{inv_id}/actions/{act_id}",
+        json={"hypothesis_id": None},
+    )
+    assert res_unauth.status_code in (401, 403)
+
+    # Cross-user unauthorized PATCH rejected (403)
+    res_cross = client.patch(
+        f"/api/v1/investigations/{inv_id}/actions/{act_id}",
+        headers=headers_attacker,
+        json={"hypothesis_id": None},
+    )
+    assert res_cross.status_code == 403

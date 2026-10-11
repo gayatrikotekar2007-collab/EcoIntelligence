@@ -6,14 +6,16 @@ import { AlertCircleIcon, CheckCircleIcon, PlusIcon, ShieldCheckIcon } from './I
 
 interface EvidenceGapsCardProps {
   investigationId: number;
-  onOpenAddEvidence?: () => void;
+  onOpenAddEvidence?: (targetObservationId?: number) => void;
   onOpenAddObservation?: () => void;
+  refreshTrigger?: any;
 }
 
 export function EvidenceGapsCard({
   investigationId,
   onOpenAddEvidence,
   onOpenAddObservation,
+  refreshTrigger,
 }: EvidenceGapsCardProps) {
   const [gapsData, setGapsData] = useState<EvidenceGapsResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -34,7 +36,7 @@ export function EvidenceGapsCard({
 
   useEffect(() => {
     fetchGaps();
-  }, [fetchGaps]);
+  }, [fetchGaps, refreshTrigger]);
 
   const getSeverityBadge = (sev: string) => {
     switch (sev.toLowerCase()) {
@@ -126,20 +128,34 @@ export function EvidenceGapsCard({
 
                 {gap.gap_type === 'no_evidence' && onOpenAddEvidence && (
                   <button
-                    onClick={onOpenAddEvidence}
+                    onClick={() => onOpenAddEvidence()}
                     className="shrink-0 font-semibold text-emerald-700 hover:text-emerald-900 ml-2"
                   >
                     + Add Evidence
                   </button>
                 )}
 
-                {gap.gap_type === 'unsupported_observation' && onOpenAddEvidence && (
-                  <button
-                    onClick={onOpenAddEvidence}
-                    className="shrink-0 font-semibold text-emerald-700 hover:text-emerald-900 ml-2"
-                  >
-                    + Support Obs
-                  </button>
+                {gap.gap_type === 'unsupported_observation' && (
+                  <div className="flex items-center gap-2 ml-2 shrink-0">
+                    {onOpenAddEvidence && (
+                      <button
+                        onClick={() => onOpenAddEvidence(gap.target_id ?? undefined)}
+                        className="font-semibold text-emerald-700 hover:text-emerald-900"
+                        title="Upload evidence for this observation"
+                      >
+                        + Add Evidence
+                      </button>
+                    )}
+                    {onOpenAddObservation && (
+                      <button
+                        onClick={onOpenAddObservation}
+                        className="font-semibold text-emerald-700 hover:text-emerald-900"
+                        title="Open observation workflow"
+                      >
+                        + Support Obs
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
             </div>

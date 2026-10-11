@@ -7,10 +7,12 @@ import React, {
   useEffect,
   useState,
 } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   User,
   authApi,
   getStoredToken,
+  onUnauthorized,
   removeStoredToken,
   setStoredToken,
 } from './api';
@@ -32,9 +34,32 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+
+  const handleSessionInvalidated = useCallback(() => {
+    removeStoredToken();
+    setUser(null);
+    setToken(null);
+    setIsLoading(false);
+    if (typeof window !== 'undefined') {
+      const pathname = window.location.pathname;
+      if (pathname !== '/login' && pathname !== '/register' && pathname !== '/') {
+        router.replace('/login');
+      }
+    }
+  }, [router]);
+
+  useEffect(() => {
+    const unsubscribe = onUnauthorized(() => {
+      handleSessionInvalidated();
+    });
+    return () => {
+      unsubscribe();
+    };
+  }, [handleSessionInvalidated]);
 
   const refreshUser = useCallback(async () => {
     const storedToken = getStoredToken();
@@ -50,13 +75,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(userData);
       setToken(storedToken);
     } catch {
-      removeStoredToken();
-      setUser(null);
-      setToken(null);
+      handleSessionInvalidated();
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [handleSessionInvalidated]);
 
   useEffect(() => {
     refreshUser();

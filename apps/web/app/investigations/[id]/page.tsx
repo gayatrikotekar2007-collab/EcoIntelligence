@@ -77,6 +77,15 @@ export default function InvestigationDetailPage({ params }: PageProps) {
   // Delete observation state
   const [deletingObsId, setDeletingObsId] = useState<number | null>(null);
 
+  // Evidence upload modal state for EvidenceGapsCard integration
+  const [isAddEvidenceModalOpen, setIsAddEvidenceModalOpen] = useState(false);
+  const [targetObsIdForEvidence, setTargetObsIdForEvidence] = useState<number | null>(null);
+
+  const handleOpenAddEvidence = (targetObsId?: number) => {
+    setTargetObsIdForEvidence(targetObsId ?? null);
+    setIsAddEvidenceModalOpen(true);
+  };
+
   const loadInvestigation = async () => {
     if (isNaN(investigationId)) {
       setError('Invalid investigation ID.');
@@ -481,6 +490,16 @@ export default function InvestigationDetailPage({ params }: PageProps) {
             observations={investigation.observations || []}
             investigationLocation={investigation.location}
             onEvidenceChanged={loadInvestigation}
+            isAddModalOpen={isAddEvidenceModalOpen}
+            onOpenAddModal={(obsId) => {
+              setTargetObsIdForEvidence(obsId ?? null);
+              setIsAddEvidenceModalOpen(true);
+            }}
+            onCloseAddModal={() => {
+              setIsAddEvidenceModalOpen(false);
+              setTargetObsIdForEvidence(null);
+            }}
+            targetObservationId={targetObsIdForEvidence}
           />
 
           {/* 4. Root-Cause Hypotheses Workspace (Phase 8A) */}
@@ -626,7 +645,9 @@ export default function InvestigationDetailPage({ params }: PageProps) {
           {/* Evidence Gaps & Needs */}
           <EvidenceGapsCard
             investigationId={investigation.id}
+            onOpenAddEvidence={handleOpenAddEvidence}
             onOpenAddObservation={() => setIsAddObsModalOpen(true)}
+            refreshTrigger={investigation ? `${investigation.updated_at}_${investigation.evidence?.length}_${investigation.observations?.length}` : 0}
           />
 
           {/* Quick Case Metadata */}

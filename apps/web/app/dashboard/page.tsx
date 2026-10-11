@@ -7,6 +7,8 @@ import { AppShell } from '../../components/AppShell';
 import {
   investigationsApi,
   evidenceApi,
+  dashboardApi,
+  DashboardStats,
   Investigation,
   CreateInvestigationPayload,
   CreateObservationPayload,
@@ -32,6 +34,11 @@ export default function DashboardPage() {
   const [investigations, setInvestigations] = useState<Investigation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Live aggregated dashboard stats
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [statsError, setStatsError] = useState<string | null>(null);
 
   // New Investigation Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -78,22 +85,35 @@ export default function DashboardPage() {
     return 'Good evening';
   }, []);
 
-  const loadInvestigations = async () => {
+  const loadDashboardData = async () => {
     try {
       setLoading(true);
+      setStatsLoading(true);
       setError(null);
-      const data = await investigationsApi.list();
-      setInvestigations(data);
+      setStatsError(null);
+
+      const [invData, statsData] = await Promise.all([
+        investigationsApi.list(),
+        dashboardApi.getStats(),
+      ]);
+
+      setInvestigations(invData);
+      setStats(statsData);
     } catch (err: any) {
-      setError(err.message || 'Failed to load investigations.');
+      const msg = err.message || 'Failed to load dashboard data.';
+      setError(msg);
+      setStatsError(msg);
+      // Prevent stale data from appearing to be current after a failed request
+      setStats(null);
     } finally {
       setLoading(false);
+      setStatsLoading(false);
     }
   };
 
   useEffect(() => {
     if (user) {
-      loadInvestigations();
+      loadDashboardData();
     }
   }, [user]);
 
@@ -233,7 +253,7 @@ export default function DashboardPage() {
       }
 
       // 4. Reload data and clean up modal
-      await loadInvestigations();
+      await loadDashboardData();
       setIsObservationModalOpen(false);
       resetObservationForm();
 
@@ -265,8 +285,8 @@ export default function DashboardPage() {
         description: modalDescription.trim() || undefined,
         status: 'active',
       };
-      const created = await investigationsApi.create(payload);
-      setInvestigations((prev) => [created, ...prev]);
+      await investigationsApi.create(payload);
+      await loadDashboardData();
       setIsModalOpen(false);
       setModalTitle('');
       setModalDescription('');
@@ -358,7 +378,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* 2. Summary Cards (Real API Data - Zero states if empty) */}
+      {/* 2. Summary Cards (Live Authenticated API Data - Distinguishing Loading, Error, and Genuine Zero States) */}
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4 mb-8">
         {/* Active Investigations */}
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs transition hover:border-slate-300">
@@ -372,14 +392,18 @@ export default function DashboardPage() {
           </div>
           <div className="mt-4 flex items-baseline gap-2">
             <span className="text-3xl font-bold text-slate-900">
-              {loading ? '-' : activeCount}
+              {statsLoading ? '-' : stats ? stats.active_investigations_count : activeCount}
             </span>
             <span className="text-xs text-slate-500">
-              {activeCount === 1 ? 'active case' : 'active cases'}
+              {(stats ? stats.active_investigations_count : activeCount) === 1
+                ? 'active case'
+                : 'active cases'}
             </span>
           </div>
           <p className="mt-2 text-xs text-slate-500">
-            {activeCount === 0
+            {statsLoading
+              ? 'Loading active investigations...'
+              : (stats ? stats.active_investigations_count : activeCount) === 0
               ? 'Zero active cases recorded.'
               : 'Investigations currently being tracked.'}
           </p>
@@ -396,11 +420,27 @@ export default function DashboardPage() {
             </div>
           </div>
           <div className="mt-4 flex items-baseline gap-2">
-            <span className="text-3xl font-bold text-slate-900">0</span>
-            <span className="text-xs text-slate-500">artifacts</span>
+            <span className="text-3xl font-bold text-slate-900">
+              {statsLoading ? (
+                '-'
+              ) : statsError ? (
+                <span className="text-sm font-semibold text-red-600">Error</span>
+              ) : (
+                stats?.evidence_count ?? '-'
+              )}
+            </span>
+            <span className="text-xs text-slate-500">
+              {stats?.evidence_count === 1 ? 'artifact' : 'artifacts'}
+            </span>
           </div>
           <p className="mt-2 text-xs text-slate-500">
-            Field photos, logs & verification files.
+            {statsLoading
+              ? 'Loading evidence artifacts...'
+              : statsError
+              ? 'Failed to load evidence count.'
+              : stats?.evidence_count === 0
+              ? 'Zero evidence artifacts collected.'
+              : 'Field photos, logs & verification files.'}
           </p>
         </div>
 
@@ -415,11 +455,27 @@ export default function DashboardPage() {
             </div>
           </div>
           <div className="mt-4 flex items-baseline gap-2">
-            <span className="text-3xl font-bold text-slate-900">0</span>
-            <span className="text-xs text-slate-500">records</span>
+            <span className="text-3xl font-bold text-slate-900">
+              {statsLoading ? (
+                '-'
+              ) : statsError ? (
+                <span className="text-sm font-semibold text-red-600">Error</span>
+              ) : (
+                stats?.observations_count ?? '-'
+              )}
+            </span>
+            <span className="text-xs text-slate-500">
+              {stats?.observations_count === 1 ? 'record' : 'records'}
+            </span>
           </div>
           <p className="mt-2 text-xs text-slate-500">
-            Field observations & anchored notes.
+            {statsLoading
+              ? 'Loading recorded observations...'
+              : statsError
+              ? 'Failed to load observations count.'
+              : stats?.observations_count === 0
+              ? 'Zero field observations recorded.'
+              : 'Field observations & anchored notes.'}
           </p>
         </div>
 
@@ -434,11 +490,27 @@ export default function DashboardPage() {
             </div>
           </div>
           <div className="mt-4 flex items-baseline gap-2">
-            <span className="text-3xl font-bold text-slate-900">0</span>
-            <span className="text-xs text-slate-500">pending</span>
+            <span className="text-3xl font-bold text-slate-900">
+              {statsLoading ? (
+                '-'
+              ) : statsError ? (
+                <span className="text-sm font-semibold text-red-600">Error</span>
+              ) : (
+                stats?.pending_actions_count ?? '-'
+              )}
+            </span>
+            <span className="text-xs text-slate-500">
+              {stats?.pending_actions_count === 1 ? 'pending action' : 'pending actions'}
+            </span>
           </div>
           <p className="mt-2 text-xs text-slate-500">
-            Awaiting verification or recommendation.
+            {statsLoading
+              ? 'Loading action plans...'
+              : statsError
+              ? 'Failed to load pending actions.'
+              : stats?.pending_actions_count === 0
+              ? 'Zero pending remediation actions.'
+              : 'Awaiting execution or verification.'}
           </p>
         </div>
       </div>
@@ -581,7 +653,7 @@ export default function DashboardPage() {
           <div className="my-6 rounded-lg border border-red-200 bg-red-50 p-4 text-center">
             <p className="text-xs font-medium text-red-800">{error}</p>
             <button
-              onClick={loadInvestigations}
+              onClick={loadDashboardData}
               className="mt-2 text-xs font-semibold text-red-900 underline"
             >
               Try again

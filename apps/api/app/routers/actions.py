@@ -259,21 +259,24 @@ def update_action(
 ):
     investigation, action = _verify_action_access(investigation_id, action_id, current_user, db)
 
-    if payload.hypothesis_id is not None:
-        hypothesis = (
-            db.query(Hypothesis)
-            .filter(
-                Hypothesis.id == payload.hypothesis_id,
-                Hypothesis.investigation_id == investigation_id,
+    if "hypothesis_id" in payload.model_fields_set:
+        if payload.hypothesis_id is not None:
+            hypothesis = (
+                db.query(Hypothesis)
+                .filter(
+                    Hypothesis.id == payload.hypothesis_id,
+                    Hypothesis.investigation_id == investigation_id,
+                )
+                .first()
             )
-            .first()
-        )
-        if not hypothesis:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Hypothesis does not belong to this investigation.",
-            )
-        action.hypothesis_id = payload.hypothesis_id
+            if not hypothesis:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Hypothesis does not belong to this investigation.",
+                )
+            action.hypothesis_id = payload.hypothesis_id
+        else:
+            action.hypothesis_id = None
 
     now = datetime.now(timezone.utc)
     old_status = action.status

@@ -34,6 +34,10 @@ interface EvidenceSectionProps {
   investigationLocation?: Location | null;
   onEvidenceChanged: () => Promise<void>;
   onOpenGaps?: () => void;
+  isAddModalOpen?: boolean;
+  onOpenAddModal?: (obsId?: number) => void;
+  onCloseAddModal?: () => void;
+  targetObservationId?: number | null;
 }
 
 export function EvidenceSection({
@@ -42,6 +46,10 @@ export function EvidenceSection({
   observations = [],
   investigationLocation,
   onEvidenceChanged,
+  isAddModalOpen: isAddModalOpenProp,
+  onOpenAddModal,
+  onCloseAddModal,
+  targetObservationId,
 }: EvidenceSectionProps) {
   // View mode: grid vs table
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
@@ -51,7 +59,8 @@ export function EvidenceSection({
   const [sourceFilter, setSourceFilter] = useState<string>('all');
 
   // Modals
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [internalIsAddModalOpen, setInternalIsAddModalOpen] = useState(false);
+  const isAddModalOpen = isAddModalOpenProp !== undefined ? isAddModalOpenProp : internalIsAddModalOpen;
   const [selectedEvidenceForDetail, setSelectedEvidenceForDetail] = useState<Evidence | null>(null);
   const [editingEvidence, setEditingEvidence] = useState<Evidence | null>(null);
   const [isCompareModalOpen, setIsCompareModalOpen] = useState(false);
@@ -87,6 +96,37 @@ export function EvidenceSection({
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Sync selected observation when targetObservationId changes
+  useEffect(() => {
+    if (targetObservationId != null) {
+      setSelectedObsId(targetObservationId.toString());
+    }
+  }, [targetObservationId]);
+
+  const handleOpenAddModal = (obsId?: number) => {
+    if (obsId != null) {
+      setSelectedObsId(obsId.toString());
+    }
+    if (onOpenAddModal) {
+      onOpenAddModal(obsId);
+    } else {
+      setInternalIsAddModalOpen(true);
+    }
+  };
+
+  const handleCloseAddModal = () => {
+    setInternalIsAddModalOpen(false);
+    onCloseAddModal?.();
+    setFile(null);
+    setDescription('');
+    setSelectedObsId('');
+    setCapturedAt('');
+    setSourceType('observed');
+    setVerificationState('needs_verification');
+    setUploadError(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
 
   // Edit Form state
   const [editDescription, setEditDescription] = useState('');
@@ -214,14 +254,7 @@ export function EvidenceSection({
       await evidenceApi.uploadEvidence(investigationId, formData);
 
       // Reset and close
-      setIsAddModalOpen(false);
-      setFile(null);
-      setDescription('');
-      setSelectedObsId('');
-      setCapturedAt('');
-      setSourceType('observed');
-      setVerificationState('needs_verification');
-      if (fileInputRef.current) fileInputRef.current.value = '';
+      handleCloseAddModal();
 
       await onEvidenceChanged();
     } catch (err: any) {
@@ -552,7 +585,7 @@ export function EvidenceSection({
           </div>
 
           <button
-            onClick={() => setIsAddModalOpen(true)}
+            onClick={() => handleOpenAddModal()}
             className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-emerald-700 transition"
           >
             <PlusIcon className="h-4 w-4" />
@@ -646,7 +679,7 @@ export function EvidenceSection({
           </p>
           {totalCount === 0 && (
             <button
-              onClick={() => setIsAddModalOpen(true)}
+              onClick={() => handleOpenAddModal()}
               className="mt-4 inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-emerald-700 shadow-xs hover:bg-slate-50 transition"
             >
               <PlusIcon className="h-3.5 w-3.5" />
@@ -1283,7 +1316,7 @@ export function EvidenceSection({
                 </div>
               </div>
               <button
-                onClick={() => setIsAddModalOpen(false)}
+                onClick={handleCloseAddModal}
                 className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition"
               >
                 <CloseIcon className="h-5 w-5" />
@@ -1397,7 +1430,7 @@ export function EvidenceSection({
               <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
                 <button
                   type="button"
-                  onClick={() => setIsAddModalOpen(false)}
+                  onClick={handleCloseAddModal}
                   className="rounded-xl border border-slate-200 px-3.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition"
                 >
                   Cancel

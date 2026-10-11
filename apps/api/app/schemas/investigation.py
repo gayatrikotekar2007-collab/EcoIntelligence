@@ -206,3 +206,13 @@ class EvidenceGapsResponse(BaseModel):
     investigation_id: int
     total_gaps: int
     gaps: List[EvidenceGap]
+
+
+class DashboardStats(BaseModel):
+    active_investigations_count: int
+    total_investigations_count: int
+    evidence_count: int
+    observations_count: int
+    pending_actions_count: int
+
+    model_config = ConfigDict(from_attributes=True)

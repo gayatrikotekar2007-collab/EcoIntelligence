@@ -513,6 +513,44 @@ export function removeStoredToken(): void {
   } catch {}
 }
 
+type UnauthorizedCallback = () => void;
+const unauthorizedListeners = new Set<UnauthorizedCallback>();
+
+export function onUnauthorized(callback: UnauthorizedCallback): () => void {
+  unauthorizedListeners.add(callback);
+  return () => {
+    unauthorizedListeners.delete(callback);
+  };
+}
+
+let lastUnauthorizedNoticeTime = 0;
+
+export function notifyUnauthorized(): void {
+  removeStoredToken();
+  const now = Date.now();
+  // Prevent duplicate handling when several requests return 401 simultaneously
+  if (now - lastUnauthorizedNoticeTime < 1000) {
+    return;
+  }
+  lastUnauthorizedNoticeTime = now;
+
+  unauthorizedListeners.forEach((callback) => {
+    try {
+      callback();
+    } catch {
+      // ignore callback error
+    }
+  });
+
+  if (typeof window !== 'undefined') {
+    try {
+      window.dispatchEvent(new CustomEvent('auth:unauthorized'));
+    } catch {
+      // ignore
+    }
+  }
+}
+
 export async function apiFetch<T>(
   endpoint: string,
   options: RequestInit = {}
@@ -547,7 +585,11 @@ export async function apiFetch<T>(
 
   if (!res.ok) {
     if (res.status === 401) {
-      removeStoredToken();
+      if (!endpoint.includes('/auth/login') && !endpoint.includes('/auth/register')) {
+        notifyUnauthorized();
+      } else {
+        removeStoredToken();
+      }
     }
 
     let errorMessage = `Request failed with status ${res.status}`;
@@ -1371,6 +1413,22 @@ export const actionsApi = {
     return apiFetch<ActionVerification[]>(
       `/api/v1/investigations/${investigationId}/actions/${actionId}/verifications`
     );
+  },
+};
+
+export interface DashboardStats {
+  active_investigations_count: number;
+  total_investigations_count: number;
+  evidence_count: number;
+  observations_count: number;
+  pending_actions_count: number;
+}
+
+export const dashboardApi = {
+  async getStats(): Promise<DashboardStats> {
+    return apiFetch<DashboardStats>('/api/v1/dashboard/stats', {
+      method: 'GET',
+    });
   },
 };
 
