@@ -115,15 +115,45 @@ export function EvidenceSection({
     }
   };
 
+  // Add Evidence Location & Preview state
+  const [uploadLatitude, setUploadLatitude] = useState('');
+  const [uploadLongitude, setUploadLongitude] = useState('');
+  const [uploadAccuracy, setUploadAccuracy] = useState('');
+  const [uploadLocationSource, setUploadLocationSource] = useState('USER_SUPPLIED');
+  const [uploadGeoNotice, setUploadGeoNotice] = useState<string | null>(null);
+  const [uploadGeoLocating, setUploadGeoLocating] = useState(false);
+  const [uploadPreviewUrl, setUploadPreviewUrl] = useState<string | null>(null);
+
+  // Track all created object URLs for reliable revocation
+  const createdObjectUrlsRef = useRef<Set<string>>(new Set());
+
+  const clearUploadPreview = () => {
+    if (uploadPreviewUrl) {
+      try {
+        URL.revokeObjectURL(uploadPreviewUrl);
+      } catch {
+        // ignore
+      }
+      createdObjectUrlsRef.current.delete(uploadPreviewUrl);
+      setUploadPreviewUrl(null);
+    }
+  };
+
   const handleCloseAddModal = () => {
     setInternalIsAddModalOpen(false);
     onCloseAddModal?.();
+    clearUploadPreview();
     setFile(null);
     setDescription('');
     setSelectedObsId('');
     setCapturedAt('');
     setSourceType('observed');
     setVerificationState('needs_verification');
+    setUploadLatitude('');
+    setUploadLongitude('');
+    setUploadAccuracy('');
+    setUploadLocationSource('USER_SUPPLIED');
+    setUploadGeoNotice(null);
     setUploadError(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
@@ -133,6 +163,12 @@ export function EvidenceSection({
   const [editSourceType, setEditSourceType] = useState<EvidenceSourceType>('observed');
   const [editVerificationState, setEditVerificationState] = useState<VerificationStateType>('needs_verification');
   const [editObsId, setEditObsId] = useState<string>('');
+  const [editLatitude, setEditLatitude] = useState('');
+  const [editLongitude, setEditLongitude] = useState('');
+  const [editAccuracy, setEditAccuracy] = useState('');
+  const [editLocationSource, setEditLocationSource] = useState('USER_SUPPLIED');
+  const [editGeoNotice, setEditGeoNotice] = useState<string | null>(null);
+  const [editGeoLocating, setEditGeoLocating] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
 
@@ -153,6 +189,7 @@ export function EvidenceSection({
             const blob = await evidenceApi.fetchEvidenceBlob(item.id);
             if (!isCancelled) {
               const url = URL.createObjectURL(blob);
+              createdObjectUrlsRef.current.add(url);
               setImageUrls((prev) => ({ ...prev, [item.id]: url }));
             }
           } catch {
@@ -168,6 +205,45 @@ export function EvidenceSection({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [evidence]);
+
+  // Clean up object URLs when evidence items are removed or updated
+  useEffect(() => {
+    const currentEvidenceIds = new Set(evidence.map((e) => e.id));
+    setImageUrls((prev) => {
+      const next: Record<number, string> = {};
+      let changed = false;
+      for (const [idStr, url] of Object.entries(prev)) {
+        const id = Number(idStr);
+        if (currentEvidenceIds.has(id)) {
+          next[id] = url;
+        } else {
+          try {
+            URL.revokeObjectURL(url);
+          } catch {
+            // ignore
+          }
+          createdObjectUrlsRef.current.delete(url);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [evidence]);
+
+  // Revoke all remaining object URLs when component unmounts
+  useEffect(() => {
+    const urlsRef = createdObjectUrlsRef.current;
+    return () => {
+      urlsRef.forEach((url) => {
+        try {
+          URL.revokeObjectURL(url);
+        } catch {
+          // ignore
+        }
+      });
+      urlsRef.clear();
+    };
+  }, []);
 
   // Sync selected evidence for detail if evidence list updates
   useEffect(() => {
@@ -213,16 +289,156 @@ export function EvidenceSection({
     });
   }, [evidence, filterType, sourceFilter]);
 
+  // Coordinate validation helper
+  const validateCoordinates = (
+    latStr: string,
+    lngStr: string,
+    accStr: string
+  ): { lat: number | null; lng: number | null; acc: number | null; error: string | null } => {
+    const hasLat = latStr.trim() !== '';
+    const hasLng = lngStr.trim() !== '';
+
+    if ((hasLat && !hasLng) || (!hasLat && hasLng)) {
+      return {
+        lat: null,
+        lng: null,
+        acc: null,
+        error: 'Latitude and Longitude must both be provided together, or both omitted.',
+      };
+    }
+
+    let lat: number | null = null;
+    let lng: number | null = null;
+    let acc: number | null = null;
+
+    if (hasLat && hasLng) {
+      const parsedLat = parseFloat(latStr);
+      const parsedLng = parseFloat(lngStr);
+
+      if (isNaN(parsedLat) || parsedLat < -90 || parsedLat > 90) {
+        return {
+          lat: null,
+          lng: null,
+          acc: null,
+          error: 'Latitude must be a valid number between -90 and 90 degrees.',
+        };
+      }
+
+      if (isNaN(parsedLng) || parsedLng < -180 || parsedLng > 180) {
+        return {
+          lat: null,
+          lng: null,
+          acc: null,
+          error: 'Longitude must be a valid number between -180 and 180 degrees.',
+        };
+      }
+
+      lat = parsedLat;
+      lng = parsedLng;
+    }
+
+    if (accStr.trim() !== '') {
+      const parsedAcc = parseFloat(accStr);
+      if (isNaN(parsedAcc) || parsedAcc < 0) {
+        return {
+          lat: null,
+          lng: null,
+          acc: null,
+          error: 'Location accuracy uncertainty must be a non-negative number in meters.',
+        };
+      }
+      acc = parsedAcc;
+    }
+
+    return { lat, lng, acc, error: null };
+  };
+
+  const handleUploadGetLocation = () => {
+    if (!navigator.geolocation) {
+      setUploadGeoNotice('Geolocation is not supported by your browser.');
+      return;
+    }
+    setUploadGeoLocating(true);
+    setUploadGeoNotice(null);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setUploadLatitude(pos.coords.latitude.toFixed(6));
+        setUploadLongitude(pos.coords.longitude.toFixed(6));
+        if (pos.coords.accuracy != null) {
+          setUploadAccuracy(Math.round(pos.coords.accuracy).toString());
+        }
+        setUploadLocationSource('GPS');
+        setUploadGeoLocating(false);
+      },
+      (err) => {
+        let msg = 'Could not fetch current coordinates.';
+        if (err.code === 1) {
+          msg = 'Location permission denied by browser. You can input coordinates manually.';
+        } else if (err.code === 2) {
+          msg = 'Location position unavailable. You can input coordinates manually.';
+        } else if (err.code === 3) {
+          msg = 'Location request timed out. You can input coordinates manually.';
+        }
+        setUploadGeoNotice(msg);
+        setUploadGeoLocating(false);
+      },
+      { timeout: 10000, enableHighAccuracy: true }
+    );
+  };
+
+  const handleEditGetLocation = () => {
+    if (!navigator.geolocation) {
+      setEditGeoNotice('Geolocation is not supported by your browser.');
+      return;
+    }
+    setEditGeoLocating(true);
+    setEditGeoNotice(null);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setEditLatitude(pos.coords.latitude.toFixed(6));
+        setEditLongitude(pos.coords.longitude.toFixed(6));
+        if (pos.coords.accuracy != null) {
+          setEditAccuracy(Math.round(pos.coords.accuracy).toString());
+        }
+        setEditLocationSource('GPS');
+        setEditGeoLocating(false);
+      },
+      (err) => {
+        let msg = 'Could not fetch current coordinates.';
+        if (err.code === 1) {
+          msg = 'Location permission denied by browser. You can input coordinates manually.';
+        } else if (err.code === 2) {
+          msg = 'Location position unavailable. You can input coordinates manually.';
+        } else if (err.code === 3) {
+          msg = 'Location request timed out. You can input coordinates manually.';
+        }
+        setEditGeoNotice(msg);
+        setEditGeoLocating(false);
+      },
+      { timeout: 10000, enableHighAccuracy: true }
+    );
+  };
+
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const selected = e.target.files[0];
       if (selected.size > 10 * 1024 * 1024) {
         setUploadError('File size exceeds the 10MB maximum limit.');
+        clearUploadPreview();
         setFile(null);
         return;
       }
       setUploadError(null);
+      clearUploadPreview();
+      if (selected.type.startsWith('image/')) {
+        const preview = URL.createObjectURL(selected);
+        createdObjectUrlsRef.current.add(preview);
+        setUploadPreviewUrl(preview);
+      }
       setFile(selected);
+    } else {
+      clearUploadPreview();
+      setFile(null);
     }
   };
 
@@ -230,6 +446,12 @@ export function EvidenceSection({
     e.preventDefault();
     if (!file) {
       setUploadError('Please select a file to upload.');
+      return;
+    }
+
+    const coordValidation = validateCoordinates(uploadLatitude, uploadLongitude, uploadAccuracy);
+    if (coordValidation.error) {
+      setUploadError(coordValidation.error);
       return;
     }
 
@@ -249,6 +471,15 @@ export function EvidenceSection({
       }
       if (capturedAt) {
         formData.append('captured_at', new Date(capturedAt).toISOString());
+      }
+      if (coordValidation.lat != null && coordValidation.lng != null) {
+        formData.append('location_latitude', coordValidation.lat.toString());
+        formData.append('location_longitude', coordValidation.lng.toString());
+        if (coordValidation.acc != null) {
+          formData.append('location_accuracy_meters', coordValidation.acc.toString());
+          formData.append('location_accuracy', coordValidation.acc.toString());
+        }
+        formData.append('location_source', uploadLocationSource || 'USER_SUPPLIED');
       }
 
       await evidenceApi.uploadEvidence(investigationId, formData);
@@ -270,12 +501,23 @@ export function EvidenceSection({
     setEditSourceType(item.source_type);
     setEditVerificationState(item.verification_state || 'needs_verification');
     setEditObsId(item.observation_id ? item.observation_id.toString() : '');
+    setEditLatitude(item.latitude != null ? item.latitude.toString() : '');
+    setEditLongitude(item.longitude != null ? item.longitude.toString() : '');
+    setEditAccuracy(item.location_accuracy != null ? item.location_accuracy.toString() : '');
+    setEditLocationSource(item.location_source || 'USER_SUPPLIED');
+    setEditGeoNotice(null);
     setEditError(null);
   };
 
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingEvidence) return;
+
+    const coordValidation = validateCoordinates(editLatitude, editLongitude, editAccuracy);
+    if (coordValidation.error) {
+      setEditError(coordValidation.error);
+      return;
+    }
 
     try {
       setEditSaving(true);
@@ -286,6 +528,10 @@ export function EvidenceSection({
         source_type: editSourceType,
         verification_state: editVerificationState,
         observation_id: editObsId ? parseInt(editObsId, 10) : null,
+        location_latitude: coordValidation.lat,
+        location_longitude: coordValidation.lng,
+        location_accuracy_meters: coordValidation.acc,
+        location_source: coordValidation.lat != null ? (editLocationSource || 'USER_SUPPLIED') : undefined,
       };
 
       await evidenceApi.updateEvidence(editingEvidence.id, payload);
@@ -310,6 +556,20 @@ export function EvidenceSection({
     try {
       setDeletingId(evidenceId);
       await evidenceApi.deleteEvidence(evidenceId);
+      if (imageUrls[evidenceId]) {
+        const urlToRevoke = imageUrls[evidenceId];
+        try {
+          URL.revokeObjectURL(urlToRevoke);
+        } catch {
+          // ignore
+        }
+        createdObjectUrlsRef.current.delete(urlToRevoke);
+        setImageUrls((prev) => {
+          const next = { ...prev };
+          delete next[evidenceId];
+          return next;
+        });
+      }
       if (selectedEvidenceForDetail?.id === evidenceId) {
         setSelectedEvidenceForDetail(null);
       }
@@ -1348,6 +1608,16 @@ export function EvidenceSection({
                     Selected: <span className="font-semibold text-slate-700">{file.name}</span> ({formatBytes(file.size)})
                   </div>
                 )}
+                {uploadPreviewUrl && (
+                  <div className="mt-2 relative h-32 w-full rounded-xl overflow-hidden border border-slate-200 bg-slate-900/5 flex items-center justify-center">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={uploadPreviewUrl}
+                      alt="Selected evidence preview"
+                      className="h-full w-full object-contain"
+                    />
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -1400,6 +1670,89 @@ export function EvidenceSection({
                     </option>
                   ))}
                 </select>
+              </div>
+
+              {/* Geographic Location Inputs */}
+              <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-3.5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-800">
+                      Geographic Location (Optional)
+                    </label>
+                    <p className="text-[11px] text-slate-500">
+                      Capture or input coordinates where this evidence was collected.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleUploadGetLocation}
+                    disabled={uploadGeoLocating}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-2xs transition disabled:opacity-50"
+                  >
+                    <MapPinIcon className="h-3.5 w-3.5 text-emerald-600" />
+                    {uploadGeoLocating ? 'Locating...' : 'Use My GPS'}
+                  </button>
+                </div>
+
+                {uploadGeoNotice && (
+                  <div className="text-[11px] text-amber-700 bg-amber-50 rounded-lg p-2 border border-amber-200">
+                    {uploadGeoNotice}
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                      Latitude (-90 to 90)
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      placeholder="e.g. 37.7749"
+                      value={uploadLatitude}
+                      onChange={(e) => {
+                        setUploadLatitude(e.target.value);
+                        setUploadLocationSource('USER_SUPPLIED');
+                      }}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-900 focus:border-emerald-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                      Longitude (-180 to 180)
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      placeholder="e.g. -122.4194"
+                      value={uploadLongitude}
+                      onChange={(e) => {
+                        setUploadLongitude(e.target.value);
+                        setUploadLocationSource('USER_SUPPLIED');
+                      }}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-900 focus:border-emerald-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                    Horizontal Accuracy Uncertainty (meters)
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    min="0"
+                    placeholder="e.g. 5"
+                    value={uploadAccuracy}
+                    onChange={(e) => setUploadAccuracy(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-900 focus:border-emerald-500 focus:outline-none"
+                  />
+                  <p className="mt-1 text-[10px] text-slate-400">
+                    Accuracy represents reported location uncertainty (± meters), not guaranteed precision.
+                  </p>
+                </div>
               </div>
 
               <div>
@@ -1535,6 +1888,89 @@ export function EvidenceSection({
                   onChange={(e) => setEditDescription(e.target.value)}
                   className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs text-slate-900 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                 />
+              </div>
+
+              {/* Geographic Location Inputs */}
+              <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-3.5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-800">
+                      Geographic Location
+                    </label>
+                    <p className="text-[11px] text-slate-500">
+                      Coordinates associated with this evidence record.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleEditGetLocation}
+                    disabled={editGeoLocating}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-2xs transition disabled:opacity-50"
+                  >
+                    <MapPinIcon className="h-3.5 w-3.5 text-emerald-600" />
+                    {editGeoLocating ? 'Locating...' : 'Use My GPS'}
+                  </button>
+                </div>
+
+                {editGeoNotice && (
+                  <div className="text-[11px] text-amber-700 bg-amber-50 rounded-lg p-2 border border-amber-200">
+                    {editGeoNotice}
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                      Latitude (-90 to 90)
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      placeholder="e.g. 37.7749"
+                      value={editLatitude}
+                      onChange={(e) => {
+                        setEditLatitude(e.target.value);
+                        setEditLocationSource('USER_SUPPLIED');
+                      }}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-900 focus:border-emerald-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                      Longitude (-180 to 180)
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      placeholder="e.g. -122.4194"
+                      value={editLongitude}
+                      onChange={(e) => {
+                        setEditLongitude(e.target.value);
+                        setEditLocationSource('USER_SUPPLIED');
+                      }}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-900 focus:border-emerald-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                    Horizontal Accuracy Uncertainty (meters)
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    min="0"
+                    placeholder="e.g. 5"
+                    value={editAccuracy}
+                    onChange={(e) => setEditAccuracy(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-900 focus:border-emerald-500 focus:outline-none"
+                  />
+                  <p className="mt-1 text-[10px] text-slate-400">
+                    Accuracy represents reported location uncertainty (± meters), not guaranteed precision.
+                  </p>
+                </div>
               </div>
 
               <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">

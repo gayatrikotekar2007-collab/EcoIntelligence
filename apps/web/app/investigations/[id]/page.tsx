@@ -64,6 +64,48 @@ export default function InvestigationDetailPage({ params }: PageProps) {
   // Status updating
   const [updatingStatus, setUpdatingStatus] = useState(false);
 
+  // Edit Investigation Metadata Modal State
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editTitle, setEditTitle] = useState('');
+  const [editCategory, setEditCategory] = useState('general');
+  const [editDescription, setEditDescription] = useState('');
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+
+  const openEditModal = () => {
+    if (!investigation) return;
+    setEditTitle(investigation.title);
+    setEditCategory(investigation.category);
+    setEditDescription(investigation.description || '');
+    setEditError(null);
+    setIsEditModalOpen(true);
+  };
+
+  const handleSaveInvestigation = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!investigation) return;
+    if (!editTitle.trim()) {
+      setEditError('Investigation title is required.');
+      return;
+    }
+
+    try {
+      setIsSavingEdit(true);
+      setEditError(null);
+      await investigationsApi.patch(investigation.id, {
+        title: editTitle.trim(),
+        category: editCategory,
+        description: editDescription.trim() || undefined,
+      });
+      setIsEditModalOpen(false);
+      await loadInvestigation();
+    } catch (err: any) {
+      setEditError(err.message || 'Failed to update investigation metadata.');
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
   // Add Observation Modal State
   const [isAddObsModalOpen, setIsAddObsModalOpen] = useState(false);
   const [obsCategory, setObsCategory] = useState('water_pollution');
@@ -340,24 +382,35 @@ export default function InvestigationDetailPage({ params }: PageProps) {
             )}
           </div>
 
-          {/* Status Workflow Selector */}
-          <div className="flex shrink-0 flex-col items-end gap-1.5">
-            <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-              Workflow Status
-            </label>
-            <select
-              value={investigation.status}
-              disabled={updatingStatus}
-              onChange={(e) => handleStatusChange(e.target.value as InvestigationStatusType)}
-              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 shadow-xs hover:border-slate-300 focus:border-emerald-500 focus:outline-none"
+          {/* Status Workflow Selector & Edit Action */}
+          <div className="flex shrink-0 flex-col sm:flex-row items-end sm:items-center gap-3">
+            <button
+              onClick={openEditModal}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-xs hover:bg-slate-50 hover:border-slate-300 transition"
+              title="Edit investigation title, category, and description"
             >
-              <option value="draft">Draft</option>
-              <option value="active">Active</option>
-              <option value="under_review">Under Review</option>
-              <option value="resolved">Resolved</option>
-              <option value="completed">Completed</option>
-              <option value="archived">Archived</option>
-            </select>
+              <FileTextIcon className="h-3.5 w-3.5 text-slate-500" />
+              Edit Details
+            </button>
+
+            <div className="flex shrink-0 flex-col items-end gap-1.5">
+              <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                Workflow Status
+              </label>
+              <select
+                value={investigation.status}
+                disabled={updatingStatus}
+                onChange={(e) => handleStatusChange(e.target.value as InvestigationStatusType)}
+                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 shadow-xs hover:border-slate-300 focus:border-emerald-500 focus:outline-none"
+              >
+                <option value="draft">Draft</option>
+                <option value="active">Active</option>
+                <option value="under_review">Under Review</option>
+                <option value="resolved">Resolved</option>
+                <option value="completed">Completed</option>
+                <option value="archived">Archived</option>
+              </select>
+            </div>
           </div>
         </div>
       </div>
@@ -810,6 +863,101 @@ export default function InvestigationDetailPage({ params }: PageProps) {
                   className="rounded-xl bg-emerald-600 px-4 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-emerald-700 disabled:opacity-50 transition"
                 >
                   {obsSubmitting ? 'Recording...' : 'Save Observation'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* 5. Edit Investigation Metadata Modal */}
+      {isEditModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 overflow-y-auto">
+          <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-xl my-8">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700">
+                  <FileTextIcon className="h-4 w-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">Edit Investigation Details</h3>
+                  <p className="text-[11px] text-slate-500">Update title, category, and scope notes</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsEditModalOpen(false)}
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition"
+              >
+                <CloseIcon className="h-5 w-5" />
+              </button>
+            </div>
+
+            {editError && (
+              <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-2.5 text-xs text-red-800 flex items-center gap-2">
+                <AlertCircleIcon className="h-4 w-4 text-red-600 shrink-0" />
+                <span>{editError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSaveInvestigation} className="mt-4 space-y-3.5">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Investigation Title *
+                </label>
+                <input
+                  type="text"
+                  required
+                  maxLength={255}
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs text-slate-900 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Category
+                </label>
+                <select
+                  value={editCategory}
+                  onChange={(e) => setEditCategory(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 focus:border-emerald-500 focus:outline-none"
+                >
+                  <option value="water_pollution">Water Pollution</option>
+                  <option value="vegetation_loss">Vegetation Loss</option>
+                  <option value="waste_accumulation">Waste Accumulation</option>
+                  <option value="air_quality">Air Quality</option>
+                  <option value="soil_contamination">Soil Contamination</option>
+                  <option value="general">General / Other</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Description & Context
+                </label>
+                <textarea
+                  rows={3}
+                  value={editDescription}
+                  onChange={(e) => setEditDescription(e.target.value)}
+                  placeholder="Describe the environmental incident, scope, or notes..."
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs text-slate-900 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsEditModalOpen(false)}
+                  className="rounded-xl border border-slate-200 px-3.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingEdit}
+                  className="rounded-xl bg-emerald-600 px-4 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-emerald-700 disabled:opacity-50 transition"
+                >
+                  {isSavingEdit ? 'Saving...' : 'Save Changes'}
                 </button>
               </div>
             </form>

@@ -71,7 +71,7 @@ export function BeforeAfterComparisonModal({
                 Eco-Eye Visual Difference Exploration
               </h3>
               <span className="rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider">
-                Phase 6B
+                Visual Difference Analysis
               </span>
             </div>
             <p className="text-[11px] text-slate-500 mt-0.5">

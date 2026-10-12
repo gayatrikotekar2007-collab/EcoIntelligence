@@ -552,7 +552,7 @@ export function HypothesisWorkspace({
                             type="checkbox"
                             checked={isSelected}
                             onChange={() => toggleSelectForComparison(h.id)}
-                            title="Select for Comparative Evaluation (Phase 8B)"
+                            title="Select for Comparative Evaluation"
                             className="rounded border-slate-300 text-purple-600 focus:ring-purple-500 h-4 w-4 cursor-pointer"
                           />
                           <h3 className="text-xs font-bold text-slate-900 leading-snug line-clamp-2">

@@ -17,6 +17,9 @@ import {
   Evidence,
   Observation,
   TimelineEntry,
+  ActionCriterion,
+  UpdateActionPayload,
+  UpdateActionCriterionPayload,
 } from '../lib/api';
 import {
   CheckCircleIcon,
@@ -29,6 +32,7 @@ import {
   FileTextIcon,
   ActivityIcon,
   ShieldCheckIcon,
+  EditIcon,
 } from './Icons';
 
 interface ActionVerificationWorkspaceProps {
@@ -77,6 +81,20 @@ export function ActionVerificationWorkspace({
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
+  // Edit Action Plan Modal State
+  const [isEditActionOpen, setIsEditActionOpen] = useState<boolean>(false);
+  const [editActionTitle, setEditActionTitle] = useState('');
+  const [editActionDescription, setEditActionDescription] = useState('');
+  const [editActionRationale, setEditActionRationale] = useState('');
+  const [editActionHypothesisId, setEditActionHypothesisId] = useState<string>('');
+  const [editActionPriority, setEditActionPriority] = useState<ActionPlanPriority>('MEDIUM');
+  const [editActionStatus, setEditActionStatus] = useState<ActionPlanStatus>('PLANNED');
+  const [editActionResponsiblePerson, setEditActionResponsiblePerson] = useState('');
+  const [editActionPlannedStart, setEditActionPlannedStart] = useState('');
+  const [editActionTargetDate, setEditActionTargetDate] = useState('');
+  const [editActionSaving, setEditActionSaving] = useState(false);
+  const [editActionError, setEditActionError] = useState<string | null>(null);
+
   // Add Criterion Modal State
   const [isAddCriterionOpen, setIsAddCriterionOpen] = useState<boolean>(false);
   const [critDescription, setCritDescription] = useState('');
@@ -85,6 +103,16 @@ export function ActionVerificationWorkspace({
   const [critTargetUnit, setCritTargetUnit] = useState<string>('');
   const [critComparisonOp, setCritComparisonOp] = useState<ComparisonOperator>('LTE');
   const [addingCriterion, setAddingCriterion] = useState(false);
+
+  // Edit Criterion State
+  const [editingCriterion, setEditingCriterion] = useState<ActionCriterion | null>(null);
+  const [editCritDescription, setEditCritDescription] = useState('');
+  const [editCritMeasurementType, setEditCritMeasurementType] = useState<MeasurementType>('NUMERIC');
+  const [editCritTargetValue, setEditCritTargetValue] = useState<string>('');
+  const [editCritTargetUnit, setEditCritTargetUnit] = useState<string>('');
+  const [editCritComparisonOp, setEditCritComparisonOp] = useState<ComparisonOperator>('LTE');
+  const [editCritSaving, setEditCritSaving] = useState(false);
+  const [editCritError, setEditCritError] = useState<string | null>(null);
 
   // Link Evidence Modal State
   const [isLinkEvidenceOpen, setIsLinkEvidenceOpen] = useState<boolean>(false);
@@ -229,6 +257,60 @@ export function ActionVerificationWorkspace({
     }
   };
 
+  // Open Edit Action Modal
+  const handleOpenEditAction = () => {
+    if (!actionDetail) return;
+    setEditActionTitle(actionDetail.title);
+    setEditActionDescription(actionDetail.description || '');
+    setEditActionRationale(actionDetail.rationale || '');
+    setEditActionHypothesisId(actionDetail.hypothesis_id ? actionDetail.hypothesis_id.toString() : '');
+    setEditActionPriority(actionDetail.priority);
+    setEditActionStatus(actionDetail.status);
+    setEditActionResponsiblePerson(actionDetail.responsible_person || '');
+    setEditActionPlannedStart(actionDetail.planned_start_date ? actionDetail.planned_start_date.slice(0, 10) : '');
+    setEditActionTargetDate(actionDetail.target_date ? actionDetail.target_date.slice(0, 10) : '');
+    setEditActionError(null);
+    setIsEditActionOpen(true);
+  };
+
+  // Submit Edit Action Plan
+  const handleUpdateAction = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!actionDetail) return;
+    if (!editActionTitle.trim()) {
+      setEditActionError('Action title is required.');
+      return;
+    }
+    try {
+      setEditActionSaving(true);
+      setEditActionError(null);
+
+      const hypId = editActionHypothesisId ? parseInt(editActionHypothesisId, 10) : null;
+
+      const payload: UpdateActionPayload = {
+        title: editActionTitle.trim(),
+        description: editActionDescription.trim() || null,
+        rationale: editActionRationale.trim() || null,
+        hypothesis_id: hypId,
+        priority: editActionPriority,
+        status: editActionStatus,
+        responsible_person: editActionResponsiblePerson.trim() || null,
+        planned_start_date: editActionPlannedStart ? new Date(editActionPlannedStart).toISOString() : null,
+        target_date: editActionTargetDate ? new Date(editActionTargetDate).toISOString() : null,
+      };
+
+      const updated = await actionsApi.update(investigationId, actionDetail.id, payload);
+      setActionDetail(updated);
+      setIsEditActionOpen(false);
+      await fetchActions();
+      if (onActionChanged) onActionChanged();
+    } catch (err: any) {
+      setEditActionError(err.message || 'Failed to update action plan.');
+    } finally {
+      setEditActionSaving(false);
+    }
+  };
+
   // Delete Action
   const handleDeleteAction = async () => {
     if (!actionDetail) return;
@@ -284,6 +366,62 @@ export function ActionVerificationWorkspace({
       if (onActionChanged) onActionChanged();
     } catch (err: any) {
       alert(err.message || 'Failed to delete criterion.');
+    }
+  };
+
+  // Open Edit Criterion Form
+  const handleOpenEditCriterion = (criterion: ActionCriterion) => {
+    setEditingCriterion(criterion);
+    setEditCritDescription(criterion.description);
+    setEditCritMeasurementType(criterion.measurement_type);
+    setEditCritComparisonOp(criterion.comparison_operator || 'LTE');
+    setEditCritTargetValue(criterion.target_value != null ? criterion.target_value.toString() : '');
+    setEditCritTargetUnit(criterion.target_unit || '');
+    setEditCritError(null);
+  };
+
+  // Submit Edit Criterion
+  const handleUpdateCriterion = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!actionDetail || !editingCriterion) return;
+    if (!editCritDescription.trim()) {
+      setEditCritError('Criterion description is required.');
+      return;
+    }
+    try {
+      setEditCritSaving(true);
+      setEditCritError(null);
+
+      const payload: UpdateActionCriterionPayload = {
+        description: editCritDescription.trim(),
+        measurement_type: editCritMeasurementType,
+        target_value:
+          editCritMeasurementType === 'NUMERIC' && editCritTargetValue !== ''
+            ? parseFloat(editCritTargetValue)
+            : null,
+        target_unit:
+          editCritMeasurementType === 'NUMERIC' && editCritTargetUnit.trim()
+            ? editCritTargetUnit.trim()
+            : null,
+        comparison_operator:
+          editCritMeasurementType === 'NUMERIC' ? editCritComparisonOp : null,
+      };
+
+      await actionsApi.updateCriterion(
+        investigationId,
+        actionDetail.id,
+        editingCriterion.id,
+        payload
+      );
+      setEditingCriterion(null);
+      const refreshed = await actionsApi.get(investigationId, actionDetail.id);
+      setActionDetail(refreshed);
+      await fetchActions();
+      if (onActionChanged) onActionChanged();
+    } catch (err: any) {
+      setEditCritError(err.message || 'Failed to update criterion.');
+    } finally {
+      setEditCritSaving(false);
     }
   };
 
@@ -870,6 +1008,190 @@ export function ActionVerificationWorkspace({
         </div>
       )}
 
+      {/* 5b. Edit Action Modal */}
+      {isEditActionOpen && actionDetail && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 overflow-y-auto">
+          <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-xl my-8">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-50 text-teal-700">
+                  <EditIcon className="h-4 w-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">Edit Action Plan</h3>
+                  <p className="text-[11px] text-slate-500">Update proposed intervention, rationale & timeline</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsEditActionOpen(false)}
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition"
+              >
+                <CloseIcon className="h-5 w-5" />
+              </button>
+            </div>
+
+            {editActionError && (
+              <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-2.5 text-xs text-red-800 flex items-center gap-2">
+                <AlertCircleIcon className="h-4 w-4 text-red-600 shrink-0" />
+                <span>{editActionError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleUpdateAction} className="mt-4 space-y-3.5">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Action Title *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Install geotextile silt barriers along eastern grading perimeter"
+                  value={editActionTitle}
+                  onChange={(e) => setEditActionTitle(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs text-slate-900 focus:border-teal-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Why this action was considered (Investigator Rationale)
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder="Explain why this action is being proposed based on observed conditions..."
+                  value={editActionRationale}
+                  onChange={(e) => setEditActionRationale(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs text-slate-900 focus:border-teal-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Action Description & Scope
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder="Document specific steps, equipment, and implementation details..."
+                  value={editActionDescription}
+                  onChange={(e) => setEditActionDescription(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs text-slate-900 focus:border-teal-500 focus:outline-none"
+                />
+              </div>
+
+              {loadedHypotheses.length > 0 && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Related Hypothesis (Optional)
+                  </label>
+                  <select
+                    value={editActionHypothesisId}
+                    onChange={(e) => setEditActionHypothesisId(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 focus:border-teal-500 focus:outline-none"
+                  >
+                    <option value="">None / Independent action</option>
+                    {loadedHypotheses.map((h) => (
+                      <option key={h.id} value={h.id.toString()}>
+                        Hypothesis #{h.id}: {h.title}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Priority
+                  </label>
+                  <select
+                    value={editActionPriority}
+                    onChange={(e) => setEditActionPriority(e.target.value as ActionPlanPriority)}
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 focus:border-teal-500 focus:outline-none"
+                  >
+                    <option value="LOW">Low</option>
+                    <option value="MEDIUM">Medium</option>
+                    <option value="HIGH">High</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Lifecycle Status
+                  </label>
+                  <select
+                    value={editActionStatus}
+                    onChange={(e) => setEditActionStatus(e.target.value as ActionPlanStatus)}
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 focus:border-teal-500 focus:outline-none"
+                  >
+                    <option value="PLANNED">PLANNED</option>
+                    <option value="IN_PROGRESS">IN PROGRESS</option>
+                    <option value="COMPLETED">COMPLETED</option>
+                    <option value="CANCELLED">CANCELLED</option>
+                    <option value="VERIFICATION_PENDING">VERIFICATION PENDING</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Responsible Person / Team
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Field Team Delta"
+                  value={editActionResponsiblePerson}
+                  onChange={(e) => setEditActionResponsiblePerson(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs text-slate-900 focus:border-teal-500 focus:outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Planned Start Date
+                  </label>
+                  <input
+                    type="date"
+                    value={editActionPlannedStart}
+                    onChange={(e) => setEditActionPlannedStart(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs text-slate-900 focus:border-teal-500 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Target Completion Date
+                  </label>
+                  <input
+                    type="date"
+                    value={editActionTargetDate}
+                    onChange={(e) => setEditActionTargetDate(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs text-slate-900 focus:border-teal-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsEditActionOpen(false)}
+                  className="rounded-xl border border-slate-200 px-3.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={editActionSaving}
+                  className="rounded-xl bg-teal-600 px-4 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-teal-700 disabled:opacity-50 transition"
+                >
+                  {editActionSaving ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* 6. Action Detail View Modal */}
       {selectedActionId && actionDetail && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 overflow-y-auto">
@@ -908,6 +1230,13 @@ export function ActionVerificationWorkspace({
               </div>
 
               <div className="flex items-center gap-2">
+                <button
+                  onClick={handleOpenEditAction}
+                  className="rounded-lg p-1.5 text-slate-400 hover:bg-teal-50 hover:text-teal-700 transition"
+                  title="Edit Action Plan"
+                >
+                  <EditIcon className="h-4 w-4" />
+                </button>
                 <button
                   onClick={handleDeleteAction}
                   className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600 transition"
@@ -1096,14 +1425,150 @@ export function ActionVerificationWorkspace({
                             <p className="text-slate-800">{c.description}</p>
                           </div>
 
-                          <button
-                            onClick={() => handleDeleteCriterion(c.id)}
-                            className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600 transition"
-                          >
-                            <TrashIcon className="h-3.5 w-3.5" />
-                          </button>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => handleOpenEditCriterion(c)}
+                              className="rounded p-1 text-slate-400 hover:bg-teal-50 hover:text-teal-700 transition"
+                              title="Edit Criterion"
+                            >
+                              <EditIcon className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteCriterion(c.id)}
+                              className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600 transition"
+                              title="Delete Criterion"
+                            >
+                              <TrashIcon className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
                         </div>
                       ))}
+                    </div>
+                  )}
+
+                  {/* Edit Criterion Sub-Form */}
+                  {editingCriterion && (
+                    <div className="rounded-xl border border-teal-300 bg-teal-50/50 p-4 space-y-3 text-xs shadow-xs">
+                      <div className="flex items-center justify-between border-b border-teal-200 pb-2">
+                        <span className="font-bold text-teal-950">
+                          Edit Verification Criterion #{editingCriterion.id}
+                        </span>
+                        <button
+                          onClick={() => setEditingCriterion(null)}
+                          className="text-slate-400 hover:text-slate-600"
+                        >
+                          <CloseIcon className="h-4 w-4" />
+                        </button>
+                      </div>
+
+                      {editCritError && (
+                        <div className="rounded-xl border border-red-200 bg-red-50 p-2 text-xs text-red-800">
+                          {editCritError}
+                        </div>
+                      )}
+
+                      <form onSubmit={handleUpdateCriterion} className="space-y-3">
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                            Criterion Description *
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            placeholder="e.g. Discharge turbidity should be below documented threshold"
+                            value={editCritDescription}
+                            onChange={(e) => setEditCritDescription(e.target.value)}
+                            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-teal-500"
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                              Measurement Type
+                            </label>
+                            <select
+                              value={editCritMeasurementType}
+                              onChange={(e) =>
+                                setEditCritMeasurementType(e.target.value as MeasurementType)
+                              }
+                              className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 focus:outline-none"
+                            >
+                              <option value="NUMERIC">NUMERIC</option>
+                              <option value="OBSERVATION">OBSERVATION</option>
+                              <option value="BOOLEAN">BOOLEAN</option>
+                              <option value="TEXT">TEXT</option>
+                            </select>
+                          </div>
+
+                          {editCritMeasurementType === 'NUMERIC' && (
+                            <>
+                              <div>
+                                <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                                  Operator
+                                </label>
+                                <select
+                                  value={editCritComparisonOp}
+                                  onChange={(e) =>
+                                    setEditCritComparisonOp(e.target.value as ComparisonOperator)
+                                  }
+                                  className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 focus:outline-none"
+                                >
+                                  <option value="LTE">&lt;= (LTE)</option>
+                                  <option value="LT">&lt; (LT)</option>
+                                  <option value="EQ">== (EQ)</option>
+                                  <option value="GTE">&gt;= (GTE)</option>
+                                  <option value="GT">&gt; (GT)</option>
+                                </select>
+                              </div>
+
+                              <div>
+                                <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                                  Target Value
+                                </label>
+                                <input
+                                  type="number"
+                                  step="any"
+                                  placeholder="e.g. 10.0"
+                                  value={editCritTargetValue}
+                                  onChange={(e) => setEditCritTargetValue(e.target.value)}
+                                  className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none"
+                                />
+                              </div>
+
+                              <div>
+                                <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                                  Unit
+                                </label>
+                                <input
+                                  type="text"
+                                  placeholder="e.g. NTU, mg/L"
+                                  value={editCritTargetUnit}
+                                  onChange={(e) => setEditCritTargetUnit(e.target.value)}
+                                  className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none"
+                                />
+                              </div>
+                            </>
+                          )}
+                        </div>
+
+                        <div className="flex justify-end gap-2 pt-2">
+                          <button
+                            type="button"
+                            onClick={() => setEditingCriterion(null)}
+                            className="rounded-lg border border-slate-200 bg-white px-3 py-1 text-xs text-slate-600 hover:bg-slate-50"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="submit"
+                            disabled={editCritSaving}
+                            className="rounded-lg bg-teal-600 px-3.5 py-1 text-xs font-semibold text-white hover:bg-teal-700 disabled:opacity-50"
+                          >
+                            {editCritSaving ? 'Saving...' : 'Save Criterion'}
+                          </button>
+                        </div>
+                      </form>
                     </div>
                   )}
 

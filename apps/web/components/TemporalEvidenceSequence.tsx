@@ -125,7 +125,7 @@ export function TemporalEvidenceSequence({
                 Multi-Temporal Evidence Sequencing
               </h3>
               <span className="rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider">
-                Phase 7A
+                Temporal Sequence
               </span>
             </div>
             <p className="text-[11px] text-slate-500 mt-0.5">
@@ -390,7 +390,7 @@ export function TemporalEvidenceSequence({
                       </h4>
                     </div>
                     <span className="rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider">
-                      Phase 7B Verified
+                      Spatial Trajectory Verified
                     </span>
                   </div>
 

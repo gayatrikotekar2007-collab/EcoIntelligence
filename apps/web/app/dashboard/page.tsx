@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { useAuth } from '../../lib/auth-context';
 import { AppShell } from '../../components/AppShell';
@@ -117,6 +117,24 @@ export default function DashboardPage() {
     }
   }, [user]);
 
+  // Track temporary preview URL for reliable unmount cleanup
+  const obsFilePreviewRef = useRef<string | null>(null);
+  useEffect(() => {
+    obsFilePreviewRef.current = obsFilePreview;
+  }, [obsFilePreview]);
+
+  useEffect(() => {
+    return () => {
+      if (obsFilePreviewRef.current) {
+        try {
+          URL.revokeObjectURL(obsFilePreviewRef.current);
+        } catch {
+          // ignore
+        }
+      }
+    };
+  }, []);
+
   // Geolocation for Observation Form
   const handleObsGetLocation = () => {
     if (!navigator.geolocation) {
@@ -147,6 +165,14 @@ export default function DashboardPage() {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] || null;
+    if (obsFilePreview) {
+      try {
+        URL.revokeObjectURL(obsFilePreview);
+      } catch {
+        // ignore
+      }
+      setObsFilePreview(null);
+    }
     setObsFile(file);
     if (file && file.type.startsWith('image/')) {
       const url = URL.createObjectURL(file);
@@ -158,7 +184,11 @@ export default function DashboardPage() {
 
   const handleRemoveFile = () => {
     if (obsFilePreview) {
-      URL.revokeObjectURL(obsFilePreview);
+      try {
+        URL.revokeObjectURL(obsFilePreview);
+      } catch {
+        // ignore
+      }
     }
     setObsFile(null);
     setObsFilePreview(null);
@@ -576,7 +606,7 @@ export default function DashboardPage() {
                   View Map
                 </p>
                 <span className="rounded bg-slate-100 px-1.5 py-0.2 text-[9px] font-semibold text-slate-600">
-                  Phase 3 GIS
+                  GIS Explorer
                 </span>
               </div>
               <p className="text-xs text-slate-500">

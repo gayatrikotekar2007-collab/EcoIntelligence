@@ -661,9 +661,17 @@ export const authApi = {
   },
 };
 
+export interface UpdateInvestigationPayload {
+  title?: string;
+  description?: string;
+  category?: string;
+  status?: InvestigationStatusType;
+}
+
 export const investigationsApi = {
-  async list(): Promise<Investigation[]> {
-    return apiFetch<Investigation[]>('/api/v1/investigations', {
+  async list(statusFilter?: string): Promise<Investigation[]> {
+    const qs = statusFilter && statusFilter !== 'all' ? `?status=${encodeURIComponent(statusFilter)}` : '';
+    return apiFetch<Investigation[]>(`/api/v1/investigations${qs}`, {
       method: 'GET',
     });
   },
@@ -683,7 +691,7 @@ export const investigationsApi = {
 
   async patch(
     id: number,
-    payload: Partial<CreateInvestigationPayload>
+    payload: UpdateInvestigationPayload
   ): Promise<Investigation> {
     return apiFetch<Investigation>(`/api/v1/investigations/${id}`, {
       method: 'PATCH',

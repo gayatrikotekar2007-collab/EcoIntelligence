@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { useAuth } from '../../lib/auth-context';
 import { AppShell } from '../../components/AppShell';
@@ -54,24 +54,24 @@ export default function InvestigationsPage() {
   const [geoLocating, setGeoLocating] = useState(false);
   const [geoNotice, setGeoNotice] = useState<string | null>(null);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await investigationsApi.list();
+      const data = await investigationsApi.list(statusFilter !== 'all' ? statusFilter : undefined);
       setInvestigations(data);
     } catch (err: any) {
       setError(err.message || 'Failed to load investigations.');
     } finally {
       setLoading(false);
     }
-  };
+  }, [statusFilter]);
 
   useEffect(() => {
     if (user) {
       loadData();
     }
-  }, [user]);
+  }, [user, loadData]);
 
   // Geolocation for Form
   const handleUseBrowserLocation = () => {
@@ -178,6 +178,8 @@ export default function InvestigationsPage() {
         return 'bg-emerald-50 text-emerald-700 border-emerald-200';
       case 'under_review':
         return 'bg-blue-50 text-blue-700 border-blue-200';
+      case 'archived':
+        return 'bg-purple-50 text-purple-700 border-purple-200';
       case 'resolved':
       case 'completed':
         return 'bg-slate-100 text-slate-700 border-slate-200';
@@ -275,6 +277,7 @@ export default function InvestigationsPage() {
             <option value="under_review">Under Review</option>
             <option value="resolved">Resolved</option>
             <option value="completed">Completed</option>
+            <option value="archived">Archived</option>
           </select>
 
           {hasActiveFilters && (
@@ -337,7 +340,16 @@ export default function InvestigationsPage() {
         </div>
       ) : filteredInvestigations.length === 0 ? (
         <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-xs text-slate-500">
-          No investigations match your current filter settings.
+          {statusFilter === 'archived' ? (
+            <div className="space-y-1">
+              <p className="font-semibold text-slate-700">No archived investigations found.</p>
+              <p className="text-slate-400">
+                Archived investigations are preserved historical cases that have been retired from active workflows.
+              </p>
+            </div>
+          ) : (
+            'No investigations match your current filter settings.'
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">

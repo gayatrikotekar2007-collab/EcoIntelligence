@@ -32,7 +32,7 @@ export default function DocsPage() {
                   </h3>
                 </div>
                 <p className="mt-2 text-sm text-slate-600 leading-relaxed">
-                  The platform clearly distinguishes between observed, user-reported, estimated, inferred, and simulated data. AI inference is never presented as confirmed fact without transparent traceability.
+                  The platform clearly distinguishes between observed, user-reported, estimated, and inferred data. Every piece of field evidence retains its original provenance, GPS coordinates, accuracy uncertainty metrics, and immutable audit history.
                 </p>
               </div>
 
@@ -40,11 +40,23 @@ export default function DocsPage() {
                 <div className="flex items-center gap-2.5">
                   <FileTextIcon className="h-5 w-5 text-emerald-700" />
                   <h3 className="text-base font-semibold text-slate-900">
-                    Phase 3 — Authentication & Application Shell
+                    Geospatial & Multi-Temporal Analysis
                   </h3>
                 </div>
                 <p className="mt-2 text-sm text-slate-600 leading-relaxed">
-                  Phase 3 introduces user registration, session management, secure password hashing, isolated investigator workspaces, and the authenticated dashboard shell.
+                  PostGIS-backed spatial indexing enables geospatial observation mapping, paired Before/After visual change comparison, and multi-temporal evidence sequencing to track environmental progression over time.
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 p-5">
+                <div className="flex items-center gap-2.5">
+                  <ShieldCheckIcon className="h-5 w-5 text-emerald-700" />
+                  <h3 className="text-base font-semibold text-slate-900">
+                    Hypotheses & Action Verification
+                  </h3>
+                </div>
+                <p className="mt-2 text-sm text-slate-600 leading-relaxed">
+                  Investigators formulate root-cause hypotheses, link corroborating or refuting evidence, define structured remediation action plans with measurable criteria, and verify post-action outcomes with deterministic evaluation.
                 </p>
               </div>
             </div>

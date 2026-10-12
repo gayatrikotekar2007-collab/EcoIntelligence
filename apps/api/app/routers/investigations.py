@@ -1,11 +1,11 @@
 from datetime import datetime, timezone
-from typing import List
+from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
-from app.models.core import Investigation, Location, Observation, TimelineEntry, User
+from app.models.core import Investigation, InvestigationStatus, Location, Observation, TimelineEntry, User
 from app.schemas.investigation import (
     InvestigationCreate,
     InvestigationDetailRead,
@@ -90,16 +90,27 @@ async def create_investigation(
 
 @router.get("", response_model=List[InvestigationRead])
 async def list_investigations(
+    status_filter: Optional[str] = Query(None, alias="status"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    investigations = (
+    query = (
         db.query(Investigation)
         .options(joinedload(Investigation.location), joinedload(Investigation.observations))
         .filter(Investigation.owner_id == current_user.id)
-        .order_by(Investigation.created_at.desc())
-        .all()
     )
+    if status_filter is not None:
+        normalized_status = status_filter.lower().strip()
+        if normalized_status and normalized_status != "all":
+            valid_statuses = {s.value for s in InvestigationStatus}
+            if normalized_status not in valid_statuses:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=f"Invalid investigation status '{status_filter}'. Supported values: {sorted(list(valid_statuses))} or 'all'",
+                )
+            query = query.filter(Investigation.status == normalized_status)
+
+    investigations = query.order_by(Investigation.created_at.desc()).all()
 
     results: List[InvestigationRead] = []
     for inv in investigations:
