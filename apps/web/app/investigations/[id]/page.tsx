@@ -10,6 +10,7 @@ import { EvidenceSection } from '../../../components/EvidenceSection';
 import { EvidenceGapsCard } from '../../../components/EvidenceGapsCard';
 import { HypothesisWorkspace } from '../../../components/HypothesisWorkspace';
 import { ActionVerificationWorkspace } from '../../../components/ActionVerificationWorkspace';
+import { ModalDialog } from '../../../components/ModalDialog';
 import {
   investigationsApi,
   InvestigationDetail,
@@ -739,26 +740,32 @@ export default function InvestigationDetailPage({ params }: PageProps) {
       </div>
 
       {/* 4. Add Observation Modal */}
-      {isAddObsModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 overflow-y-auto">
-          <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-xl my-8">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700">
-                  <EyeIcon className="h-4 w-4" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900">Record Field Observation</h3>
-                  <p className="text-[11px] text-slate-500">Add physical evidence to this investigation</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setIsAddObsModalOpen(false)}
-                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition"
-              >
-                <CloseIcon className="h-5 w-5" />
-              </button>
+      <ModalDialog
+        isOpen={isAddObsModalOpen}
+        onClose={() => setIsAddObsModalOpen(false)}
+        titleId="add-obs-modal-title"
+        className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 overflow-y-auto"
+        contentClassName="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-xl my-8"
+      >
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700">
+              <EyeIcon className="h-4 w-4" />
             </div>
+            <div>
+              <h3 id="add-obs-modal-title" className="text-sm font-bold text-slate-900">Record Field Observation</h3>
+              <p className="text-[11px] text-slate-500">Add physical evidence to this investigation</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsAddObsModalOpen(false)}
+            aria-label="Close dialog"
+            className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition"
+          >
+            <CloseIcon className="h-5 w-5" />
+          </button>
+        </div>
 
             {obsError && (
               <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-2.5 text-xs text-red-800 flex items-center gap-2">
@@ -866,30 +873,34 @@ export default function InvestigationDetailPage({ params }: PageProps) {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+      </ModalDialog>
       {/* 5. Edit Investigation Metadata Modal */}
-      {isEditModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 overflow-y-auto">
-          <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-xl my-8">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700">
-                  <FileTextIcon className="h-4 w-4" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900">Edit Investigation Details</h3>
-                  <p className="text-[11px] text-slate-500">Update title, category, and scope notes</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setIsEditModalOpen(false)}
-                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition"
-              >
-                <CloseIcon className="h-5 w-5" />
-              </button>
+      <ModalDialog
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        titleId="edit-inv-details-title"
+        className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 overflow-y-auto"
+        contentClassName="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-xl my-8"
+      >
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700">
+              <FileTextIcon className="h-4 w-4" />
             </div>
+            <div>
+              <h3 id="edit-inv-details-title" className="text-sm font-bold text-slate-900">Edit Investigation Details</h3>
+              <p className="text-[11px] text-slate-500">Update title, category, and scope notes</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsEditModalOpen(false)}
+            aria-label="Close dialog"
+            className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition"
+          >
+            <CloseIcon className="h-5 w-5" />
+          </button>
+        </div>
 
             {editError && (
               <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-2.5 text-xs text-red-800 flex items-center gap-2">
@@ -961,9 +972,7 @@ export default function InvestigationDetailPage({ params }: PageProps) {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+      </ModalDialog>
     </AppShell>
   );
 }

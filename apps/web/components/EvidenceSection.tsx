@@ -26,6 +26,7 @@ import {
 } from './Icons';
 import { BeforeAfterComparisonModal } from './BeforeAfterComparisonModal';
 import { TemporalEvidenceSequence } from './TemporalEvidenceSequence';
+import { ModalDialog } from './ModalDialog';
 
 interface EvidenceSectionProps {
   investigationId: number;
@@ -1252,16 +1253,22 @@ export function EvidenceSection({
       )}
 
       {/* 6. Comprehensive Evidence Detail Modal */}
-      {selectedEvidenceForDetail && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4 overflow-y-auto">
-          <div className="relative max-h-[92vh] max-w-3xl w-full flex flex-col rounded-2xl bg-white shadow-2xl overflow-hidden my-4">
+      <ModalDialog
+        isOpen={Boolean(selectedEvidenceForDetail)}
+        onClose={() => setSelectedEvidenceForDetail(null)}
+        titleId="evidence-detail-title"
+        className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4 overflow-y-auto"
+        contentClassName="relative max-h-[92vh] max-w-3xl w-full flex flex-col rounded-2xl bg-white shadow-2xl overflow-hidden my-4"
+      >
+        {selectedEvidenceForDetail && (
+          <>
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 bg-slate-50/50">
               <div className="min-w-0 pr-4">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                   Evidence Artifact #{selectedEvidenceForDetail.id}
                 </span>
-                <h3 className="text-base font-bold text-slate-900 truncate">
+                <h3 id="evidence-detail-title" className="text-base font-bold text-slate-900 truncate">
                   {selectedEvidenceForDetail.original_filename}
                 </h3>
               </div>
@@ -1279,6 +1286,7 @@ export function EvidenceSection({
                 </button>
                 <button
                   onClick={() => setSelectedEvidenceForDetail(null)}
+                  aria-label="Close evidence details"
                   className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition"
                 >
                   <CloseIcon className="h-5 w-5" />
@@ -1522,9 +1530,9 @@ export function EvidenceSection({
                 Done
               </button>
             </div>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </ModalDialog>
 
       {/* 7. Before / After Comparison Modal (Extended in Phase 6B) */}
       <BeforeAfterComparisonModal
@@ -1562,26 +1570,32 @@ export function EvidenceSection({
       />
 
       {/* 8. Add Evidence Modal */}
-      {isAddModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 overflow-y-auto">
-          <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-xl my-8">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700">
-                  <ShieldCheckIcon className="h-4 w-4" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900">Upload Investigation Evidence</h3>
-                  <p className="text-[11px] text-slate-500">Supported formats: JPG, PNG, WEBP, PDF (max 10MB)</p>
-                </div>
-              </div>
-              <button
-                onClick={handleCloseAddModal}
-                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition"
-              >
-                <CloseIcon className="h-5 w-5" />
-              </button>
+      <ModalDialog
+        isOpen={isAddModalOpen}
+        onClose={handleCloseAddModal}
+        titleId="upload-evidence-modal-title"
+        className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 overflow-y-auto"
+        contentClassName="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-xl my-8"
+      >
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700">
+              <ShieldCheckIcon className="h-4 w-4" />
             </div>
+            <div>
+              <h3 id="upload-evidence-modal-title" className="text-sm font-bold text-slate-900">Upload Investigation Evidence</h3>
+              <p className="text-[11px] text-slate-500">Supported formats: JPG, PNG, WEBP, PDF (max 10MB)</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={handleCloseAddModal}
+            aria-label="Close upload evidence dialog"
+            className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition"
+          >
+            <CloseIcon className="h-5 w-5" />
+          </button>
+        </div>
 
             {uploadError && (
               <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-2.5 text-xs text-red-800 flex items-center gap-2">
@@ -1797,21 +1811,27 @@ export function EvidenceSection({
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+      </ModalDialog>
 
       {/* 9. Edit Evidence Modal */}
-      {editingEvidence && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 overflow-y-auto">
-          <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-xl my-8">
+      <ModalDialog
+        isOpen={Boolean(editingEvidence)}
+        onClose={() => setEditingEvidence(null)}
+        titleId="edit-evidence-modal-title"
+        className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 overflow-y-auto"
+        contentClassName="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-xl my-8"
+      >
+        {editingEvidence && (
+          <>
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div>
-                <h3 className="text-sm font-bold text-slate-900">Edit Evidence Metadata</h3>
+                <h3 id="edit-evidence-modal-title" className="text-sm font-bold text-slate-900">Edit Evidence Metadata</h3>
                 <p className="text-[11px] text-slate-500">{editingEvidence.original_filename}</p>
               </div>
               <button
+                type="button"
                 onClick={() => setEditingEvidence(null)}
+                aria-label="Close edit evidence dialog"
                 className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition"
               >
                 <CloseIcon className="h-5 w-5" />
@@ -1990,9 +2010,9 @@ export function EvidenceSection({
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </ModalDialog>
     </div>
   );
 }

@@ -34,6 +34,7 @@ import {
   ShieldCheckIcon,
   EditIcon,
 } from './Icons';
+import { ModalDialog } from './ModalDialog';
 
 interface ActionVerificationWorkspaceProps {
   investigationId: number;
@@ -841,26 +842,32 @@ export function ActionVerificationWorkspace({
       )}
 
       {/* 5. Create Action Modal */}
-      {isCreateModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 overflow-y-auto">
-          <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-xl my-8">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-50 text-teal-700">
-                  <ShieldCheckIcon className="h-4 w-4" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900">Define Remediation Action Plan</h3>
-                  <p className="text-[11px] text-slate-500">Document proposed intervention, rationale & verification targets</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setIsCreateModalOpen(false)}
-                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition"
-              >
-                <CloseIcon className="h-5 w-5" />
-              </button>
+      <ModalDialog
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        titleId="create-action-modal-title"
+        className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 overflow-y-auto"
+        contentClassName="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-xl my-8"
+      >
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-50 text-teal-700">
+              <ShieldCheckIcon className="h-4 w-4" />
             </div>
+            <div>
+              <h3 id="create-action-modal-title" className="text-sm font-bold text-slate-900">Define Remediation Action Plan</h3>
+              <p className="text-[11px] text-slate-500">Document proposed intervention, rationale & verification targets</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsCreateModalOpen(false)}
+            aria-label="Close dialog"
+            className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition"
+          >
+            <CloseIcon className="h-5 w-5" />
+          </button>
+        </div>
 
             {createError && (
               <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-2.5 text-xs text-red-800 flex items-center gap-2">
@@ -1004,26 +1011,33 @@ export function ActionVerificationWorkspace({
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+      </ModalDialog>
 
       {/* 5b. Edit Action Modal */}
-      {isEditActionOpen && actionDetail && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 overflow-y-auto">
-          <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-xl my-8">
+      <ModalDialog
+        isOpen={Boolean(isEditActionOpen && actionDetail)}
+        onClose={() => setIsEditActionOpen(false)}
+        titleId="edit-action-modal-title"
+        zIndex="z-[60]"
+        className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 overflow-y-auto"
+        contentClassName="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-xl my-8"
+      >
+        {isEditActionOpen && actionDetail && (
+          <>
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-50 text-teal-700">
                   <EditIcon className="h-4 w-4" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-slate-900">Edit Action Plan</h3>
+                  <h3 id="edit-action-modal-title" className="text-sm font-bold text-slate-900">Edit Action Plan</h3>
                   <p className="text-[11px] text-slate-500">Update proposed intervention, rationale & timeline</p>
                 </div>
               </div>
               <button
+                type="button"
                 onClick={() => setIsEditActionOpen(false)}
+                aria-label="Close dialog"
                 className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition"
               >
                 <CloseIcon className="h-5 w-5" />
@@ -1188,14 +1202,23 @@ export function ActionVerificationWorkspace({
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </ModalDialog>
 
       {/* 6. Action Detail View Modal */}
-      {selectedActionId && actionDetail && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 overflow-y-auto">
-          <div className="w-full max-w-4xl rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl my-6 flex flex-col max-h-[90vh]">
+      <ModalDialog
+        isOpen={Boolean(selectedActionId && actionDetail)}
+        onClose={() => {
+          setSelectedActionId(null);
+          setActionDetail(null);
+        }}
+        titleId="action-detail-modal-title"
+        className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 overflow-y-auto"
+        contentClassName="w-full max-w-4xl rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl my-6 flex flex-col max-h-[90vh]"
+      >
+        {selectedActionId && actionDetail && (
+          <>
             {/* Modal Header */}
             <div className="flex items-start justify-between border-b border-slate-100 pb-4">
               <div>
@@ -1226,7 +1249,7 @@ export function ActionVerificationWorkspace({
                     </span>
                   )}
                 </div>
-                <h2 className="text-lg font-bold text-slate-900">{actionDetail.title}</h2>
+                <h2 id="action-detail-modal-title" className="text-lg font-bold text-slate-900">{actionDetail.title}</h2>
               </div>
 
               <div className="flex items-center gap-2">
@@ -1234,6 +1257,7 @@ export function ActionVerificationWorkspace({
                   onClick={handleOpenEditAction}
                   className="rounded-lg p-1.5 text-slate-400 hover:bg-teal-50 hover:text-teal-700 transition"
                   title="Edit Action Plan"
+                  aria-label="Edit Action Plan"
                 >
                   <EditIcon className="h-4 w-4" />
                 </button>
@@ -1241,14 +1265,17 @@ export function ActionVerificationWorkspace({
                   onClick={handleDeleteAction}
                   className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600 transition"
                   title="Delete Action"
+                  aria-label="Delete Action"
                 >
                   <TrashIcon className="h-4 w-4" />
                 </button>
                 <button
+                  type="button"
                   onClick={() => {
                     setSelectedActionId(null);
                     setActionDetail(null);
                   }}
+                  aria-label="Close action details"
                   className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition"
                 >
                   <CloseIcon className="h-5 w-5" />
@@ -2151,30 +2178,37 @@ export function ActionVerificationWorkspace({
                   )}
 
                   {/* Record Verification Modal */}
-                  {isVerifyModalOpen && (
-                    <div className="fixed inset-0 z-60 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 overflow-y-auto">
-                      <div className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl my-8 text-xs max-h-[90vh] flex flex-col">
-                        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                          <div className="flex items-center gap-2">
-                            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-50 text-teal-700">
-                              <ShieldCheckIcon className="h-4 w-4" />
-                            </div>
-                            <div>
-                              <h3 className="text-sm font-bold text-slate-900">
-                                Record Action Verification
-                              </h3>
-                              <p className="text-[11px] text-slate-500">
-                                Deterministic criterion assessment & investigator evaluation
-                              </p>
-                            </div>
-                          </div>
-                          <button
-                            onClick={() => setIsVerifyModalOpen(false)}
-                            className="rounded-lg p-1 text-slate-400 hover:bg-slate-100"
-                          >
-                            <CloseIcon className="h-5 w-5" />
-                          </button>
+                  <ModalDialog
+                    isOpen={isVerifyModalOpen}
+                    onClose={() => setIsVerifyModalOpen(false)}
+                    titleId="record-verification-modal-title"
+                    zIndex="z-[70]"
+                    className="fixed inset-0 z-60 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 overflow-y-auto"
+                    contentClassName="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl my-8 text-xs max-h-[90vh] flex flex-col"
+                  >
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                      <div className="flex items-center gap-2">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-50 text-teal-700">
+                          <ShieldCheckIcon className="h-4 w-4" />
                         </div>
+                        <div>
+                          <h3 id="record-verification-modal-title" className="text-sm font-bold text-slate-900">
+                            Record Action Verification
+                          </h3>
+                          <p className="text-[11px] text-slate-500">
+                            Deterministic criterion assessment & investigator evaluation
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setIsVerifyModalOpen(false)}
+                        aria-label="Close verification dialog"
+                        className="rounded-lg p-1 text-slate-400 hover:bg-slate-100"
+                      >
+                        <CloseIcon className="h-5 w-5" />
+                      </button>
+                    </div>
 
                         {verifyError && (
                           <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-2.5 text-xs text-red-800">
@@ -2367,9 +2401,7 @@ export function ActionVerificationWorkspace({
                             </button>
                           </div>
                         </form>
-                      </div>
-                    </div>
-                  )}
+                  </ModalDialog>
                 </div>
               )}
 
@@ -2414,9 +2446,9 @@ export function ActionVerificationWorkspace({
                 </div>
               )}
             </div>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </ModalDialog>
     </div>
   );
 }

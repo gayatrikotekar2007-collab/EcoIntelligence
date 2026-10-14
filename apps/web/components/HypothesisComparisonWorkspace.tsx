@@ -19,6 +19,7 @@ import {
   MapPinIcon,
   ClockIcon,
 } from './Icons';
+import { ModalDialog } from './ModalDialog';
 
 interface HypothesisComparisonWorkspaceProps {
   comparison: HypothesisComparisonResponse;
@@ -793,18 +794,26 @@ export function HypothesisComparisonWorkspace({
       )}
 
       {/* 7. EVIDENCE INSPECT MODAL */}
-      {inspectedEvidence && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-2xs p-4 overflow-y-auto">
-          <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl space-y-4">
+      <ModalDialog
+        isOpen={Boolean(inspectedEvidence)}
+        onClose={() => setInspectedEvidenceId(null)}
+        titleId="inspect-evidence-modal-title"
+        className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-2xs p-4 overflow-y-auto"
+        contentClassName="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl space-y-4"
+      >
+        {inspectedEvidence && (
+          <>
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
                 <FileTextIcon className="h-5 w-5 text-emerald-600" />
-                <h3 className="text-sm font-bold text-slate-900">
+                <h3 id="inspect-evidence-modal-title" className="text-sm font-bold text-slate-900">
                   Evidence #{inspectedEvidence.id} Details
                 </h3>
               </div>
               <button
+                type="button"
                 onClick={() => setInspectedEvidenceId(null)}
+                aria-label="Close dialog"
                 className="text-slate-400 hover:text-slate-600"
               >
                 <CloseIcon className="h-5 w-5" />
@@ -878,29 +887,38 @@ export function HypothesisComparisonWorkspace({
 
             <div className="flex justify-end pt-2 border-t border-slate-100">
               <button
+                type="button"
                 onClick={() => setInspectedEvidenceId(null)}
                 className="rounded-xl bg-slate-900 px-4 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 transition"
               >
                 Close
               </button>
             </div>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </ModalDialog>
 
       {/* 8. OBSERVATION INSPECT MODAL */}
-      {inspectedObservation && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-2xs p-4 overflow-y-auto">
-          <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl space-y-4">
+      <ModalDialog
+        isOpen={Boolean(inspectedObservation)}
+        onClose={() => setInspectedObsId(null)}
+        titleId="inspect-obs-modal-title"
+        className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-2xs p-4 overflow-y-auto"
+        contentClassName="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl space-y-4"
+      >
+        {inspectedObservation && (
+          <>
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
                 <EyeIcon className="h-5 w-5 text-emerald-600" />
-                <h3 className="text-sm font-bold text-slate-900">
+                <h3 id="inspect-obs-modal-title" className="text-sm font-bold text-slate-900">
                   Observation #{inspectedObservation.id} Details
                 </h3>
               </div>
               <button
+                type="button"
                 onClick={() => setInspectedObsId(null)}
+                aria-label="Close dialog"
                 className="text-slate-400 hover:text-slate-600"
               >
                 <CloseIcon className="h-5 w-5" />
@@ -956,15 +974,16 @@ export function HypothesisComparisonWorkspace({
 
             <div className="flex justify-end pt-2 border-t border-slate-100">
               <button
+                type="button"
                 onClick={() => setInspectedObsId(null)}
                 className="rounded-xl bg-slate-900 px-4 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 transition"
               >
                 Close
               </button>
             </div>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </ModalDialog>
     </div>
   );
 }

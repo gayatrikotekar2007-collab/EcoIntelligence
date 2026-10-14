@@ -25,6 +25,7 @@ import {
   LayersIcon,
 } from './Icons';
 import { HypothesisComparisonWorkspace } from './HypothesisComparisonWorkspace';
+import { ModalDialog } from './ModalDialog';
 
 interface HypothesisWorkspaceProps {
   investigationId: number;
@@ -621,18 +622,24 @@ export function HypothesisWorkspace({
     )}
 
       {/* 4. Formulate Hypothesis Modal */}
-      {isCreateModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 overflow-y-auto">
-          <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-xl space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="text-sm font-bold text-slate-900">Formulate Root-Cause Hypothesis</h3>
-              <button
-                onClick={() => setIsCreateModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600"
-              >
-                <CloseIcon className="h-5 w-5" />
-              </button>
-            </div>
+      <ModalDialog
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        titleId="create-hypothesis-modal-title"
+        className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 overflow-y-auto"
+        contentClassName="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-xl space-y-4"
+      >
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <h3 id="create-hypothesis-modal-title" className="text-sm font-bold text-slate-900">Formulate Root-Cause Hypothesis</h3>
+          <button
+            type="button"
+            onClick={() => setIsCreateModalOpen(false)}
+            aria-label="Close dialog"
+            className="text-slate-400 hover:text-slate-600"
+          >
+            <CloseIcon className="h-5 w-5" />
+          </button>
+        </div>
 
             {createError && (
               <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700">
@@ -733,14 +740,21 @@ export function HypothesisWorkspace({
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+      </ModalDialog>
 
       {/* 5. Deep Hypothesis Detail Workspace Modal */}
-      {selectedHypothesisId !== null && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-3 sm:p-6 overflow-y-auto">
-          <div className="w-full max-w-4xl max-h-[92vh] flex flex-col rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden">
+      <ModalDialog
+        isOpen={selectedHypothesisId !== null}
+        onClose={() => {
+          setSelectedHypothesisId(null);
+          setHypothesisDetail(null);
+        }}
+        titleId="hypothesis-detail-modal-title"
+        className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-3 sm:p-6 overflow-y-auto"
+        contentClassName="w-full max-w-4xl max-h-[92vh] flex flex-col rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden"
+      >
+        {selectedHypothesisId !== null && (
+          <>
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4 bg-slate-50/80">
               <div className="flex items-center gap-3">
@@ -748,7 +762,7 @@ export function HypothesisWorkspace({
                   H
                 </span>
                 <div>
-                  <h3 className="text-sm sm:text-base font-bold text-slate-900 leading-tight">
+                  <h3 id="hypothesis-detail-modal-title" className="text-sm sm:text-base font-bold text-slate-900 leading-tight">
                     {hypothesisDetail?.title || 'Hypothesis Workspace'}
                   </h3>
                   <span className="text-[11px] text-slate-500">
@@ -765,10 +779,12 @@ export function HypothesisWorkspace({
                   Delete
                 </button>
                 <button
+                  type="button"
                   onClick={() => {
                     setSelectedHypothesisId(null);
                     setHypothesisDetail(null);
                   }}
+                  aria-label="Close hypothesis details"
                   className="text-slate-400 hover:text-slate-600 p-1"
                 >
                   <CloseIcon className="h-5 w-5" />
@@ -1504,9 +1520,9 @@ export function HypothesisWorkspace({
                 )}
               </div>
             )}
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </ModalDialog>
     </>
   )}
 </div>

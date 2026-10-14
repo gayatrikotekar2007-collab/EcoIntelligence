@@ -4,6 +4,7 @@ import React, { useEffect, useState, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { useAuth } from '../../lib/auth-context';
 import { AppShell } from '../../components/AppShell';
+import { ModalDialog } from '../../components/ModalDialog';
 import {
   investigationsApi,
   evidenceApi,
@@ -618,39 +619,44 @@ export default function DashboardPage() {
       </div>
 
       {/* Notice modal for upcoming feature */}
-      {upcomingPhaseNotice && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl border border-slate-200">
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700">
-                  <ShieldCheckIcon className="h-4 w-4" />
-                </div>
-                <h4 className="text-base font-semibold text-slate-900">
-                  Roadmap Milestone
-                </h4>
-              </div>
-              <button
-                onClick={() => setUpcomingPhaseNotice(null)}
-                className="text-slate-400 hover:text-slate-600 p-1"
-              >
-                <CloseIcon className="h-5 w-5" />
-              </button>
+      <ModalDialog
+        isOpen={Boolean(upcomingPhaseNotice)}
+        onClose={() => setUpcomingPhaseNotice(null)}
+        titleId="upcoming-notice-title"
+        className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4"
+        contentClassName="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl border border-slate-200"
+      >
+        <div className="flex items-start justify-between">
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700">
+              <ShieldCheckIcon className="h-4 w-4" />
             </div>
-            <p className="mt-3 text-sm text-slate-600 leading-relaxed">
-              {upcomingPhaseNotice}
-            </p>
-            <div className="mt-5 flex justify-end">
-              <button
-                onClick={() => setUpcomingPhaseNotice(null)}
-                className="rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800 transition"
-              >
-                Understood
-              </button>
-            </div>
+            <h4 id="upcoming-notice-title" className="text-base font-semibold text-slate-900">
+              Roadmap Milestone
+            </h4>
           </div>
+          <button
+            type="button"
+            onClick={() => setUpcomingPhaseNotice(null)}
+            aria-label="Close notice"
+            className="text-slate-400 hover:text-slate-600 p-1"
+          >
+            <CloseIcon className="h-5 w-5" />
+          </button>
         </div>
-      )}
+        <p className="mt-3 text-sm text-slate-600 leading-relaxed">
+          {upcomingPhaseNotice}
+        </p>
+        <div className="mt-5 flex justify-end">
+          <button
+            type="button"
+            onClick={() => setUpcomingPhaseNotice(null)}
+            className="rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800 transition"
+          >
+            Understood
+          </button>
+        </div>
+      </ModalDialog>
 
       {/* 4. Recent Investigations Section */}
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs">
@@ -781,30 +787,36 @@ export default function DashboardPage() {
       </div>
 
       {/* Modal: Start Investigation */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
-          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-              <div className="flex items-center gap-2.5">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-600 text-white">
-                  <PlusIcon className="h-4 w-4" />
-                </div>
-                <div>
-                  <h4 className="text-base font-bold text-slate-900">
-                    Start Environmental Investigation
-                  </h4>
-                  <p className="text-xs text-slate-500">
-                    Register a traceable investigation record
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setIsModalOpen(false)}
-                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-              >
-                <CloseIcon className="h-5 w-5" />
-              </button>
+      <ModalDialog
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        titleId="dashboard-create-inv-title"
+        className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4"
+        contentClassName="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150"
+      >
+        <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-600 text-white">
+              <PlusIcon className="h-4 w-4" />
             </div>
+            <div>
+              <h4 id="dashboard-create-inv-title" className="text-base font-bold text-slate-900">
+                Start Environmental Investigation
+              </h4>
+              <p className="text-xs text-slate-500">
+                Register a traceable investigation record
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsModalOpen(false)}
+            aria-label="Close dialog"
+            className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+          >
+            <CloseIcon className="h-5 w-5" />
+          </button>
+        </div>
 
             {createError && (
               <div className="mt-4 flex items-start gap-2.5 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-800">
@@ -888,37 +900,45 @@ export default function DashboardPage() {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+      </ModalDialog>
+
       {/* Modal: Add Observation */}
-      {isObservationModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 overflow-y-auto">
-          <div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl border border-slate-200 my-8 animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-              <div className="flex items-center gap-2.5">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-500 text-white shadow-xs">
-                  <EyeIcon className="h-5 w-5" />
-                </div>
-                <div>
-                  <h4 className="text-base font-bold text-slate-900">
-                    Record Field Observation
-                  </h4>
-                  <p className="text-xs text-slate-500">
-                    Log physical evidence, sensor indicators, and environmental anomalies
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => {
-                  setIsObservationModalOpen(false);
-                  resetObservationForm();
-                }}
-                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition"
-              >
-                <CloseIcon className="h-5 w-5" />
-              </button>
+      <ModalDialog
+        isOpen={isObservationModalOpen}
+        onClose={() => {
+          setIsObservationModalOpen(false);
+          resetObservationForm();
+        }}
+        titleId="dashboard-add-obs-title"
+        className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 overflow-y-auto"
+        contentClassName="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl border border-slate-200 my-8 animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto"
+      >
+        <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-500 text-white shadow-xs">
+              <EyeIcon className="h-5 w-5" />
             </div>
+            <div>
+              <h4 id="dashboard-add-obs-title" className="text-base font-bold text-slate-900">
+                Record Field Observation
+              </h4>
+              <p className="text-xs text-slate-500">
+                Log physical evidence, sensor indicators, and environmental anomalies
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setIsObservationModalOpen(false);
+              resetObservationForm();
+            }}
+            aria-label="Close dialog"
+            className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition"
+          >
+            <CloseIcon className="h-5 w-5" />
+          </button>
+        </div>
 
             {obsError && (
               <div className="mt-4 flex items-start gap-2.5 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-800">
@@ -1209,9 +1229,7 @@ export default function DashboardPage() {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+      </ModalDialog>
     </AppShell>
   );
 }

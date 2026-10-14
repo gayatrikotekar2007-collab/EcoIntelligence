@@ -16,6 +16,7 @@ import {
   LayersIcon,
 } from './Icons';
 import { TemporalTrajectoryMap } from './TemporalTrajectoryMap';
+import { useModalAccessibility } from './ModalDialog';
 
 interface TemporalEvidenceSequenceProps {
   isOpen: boolean;
@@ -42,6 +43,12 @@ export function TemporalEvidenceSequence({
   onOpenEvidenceDetail,
   onEvidenceChanged,
 }: TemporalEvidenceSequenceProps) {
+  const { modalRef, dialogProps, handleBackdropClick } = useModalAccessibility({
+    isOpen,
+    onClose,
+    titleId: 'temporal-modal-title',
+  });
+
   // Filter for image evidence only
   const imageEvidence = useMemo(
     () => evidenceItems.filter((e) => e.evidence_type === 'image'),
@@ -108,14 +115,20 @@ export function TemporalEvidenceSequence({
     }
   };
 
+  if (!isOpen) return null;
+
   return (
     <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="temporal-modal-title"
+      data-modal-backdrop="true"
       className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-3 sm:p-4 overflow-y-auto"
+      onClick={handleBackdropClick}
     >
-      <div className="relative max-h-[94vh] max-w-5xl w-full flex flex-col rounded-2xl bg-white shadow-2xl overflow-hidden my-auto border border-slate-200">
+      <div
+        ref={modalRef}
+        {...dialogProps}
+        className="relative max-h-[94vh] max-w-5xl w-full flex flex-col rounded-2xl bg-white shadow-2xl overflow-hidden my-auto border border-slate-200"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-100 px-5 sm:px-6 py-3.5 bg-slate-50">
           <div>

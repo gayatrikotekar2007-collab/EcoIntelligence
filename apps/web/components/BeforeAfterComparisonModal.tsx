@@ -6,6 +6,7 @@ import { BeforeAfterSplitSlider } from './BeforeAfterSplitSlider';
 import { DifferenceHeatmapView } from './DifferenceHeatmapView';
 import { DifferenceRegionView } from './DifferenceRegionView';
 import { AlertCircleIcon, CloseIcon, CompareIcon } from './Icons';
+import { useModalAccessibility } from './ModalDialog';
 
 export type ComparisonViewMode = 'split' | 'heatmap' | 'region' | 'side_by_side';
 
@@ -42,6 +43,12 @@ export function BeforeAfterComparisonModal({
 }: BeforeAfterComparisonModalProps) {
   const [activeMode, setActiveMode] = useState<ComparisonViewMode>('split');
 
+  const { modalRef, dialogProps, handleBackdropClick } = useModalAccessibility({
+    isOpen,
+    onClose,
+    titleId: 'comparison-modal-title',
+  });
+
   if (!isOpen) return null;
 
   const imageEvidenceItems = evidenceItems.filter((e) => e.evidence_type === 'image');
@@ -56,12 +63,16 @@ export function BeforeAfterComparisonModal({
 
   return (
     <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="comparison-modal-title"
+      data-modal-backdrop="true"
       className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-3 sm:p-4 overflow-y-auto"
+      onClick={handleBackdropClick}
     >
-      <div className="relative max-h-[94vh] max-w-5xl w-full flex flex-col rounded-2xl bg-white shadow-2xl overflow-hidden my-auto border border-slate-200">
+      <div
+        ref={modalRef}
+        {...dialogProps}
+        className="relative max-h-[94vh] max-w-5xl w-full flex flex-col rounded-2xl bg-white shadow-2xl overflow-hidden my-auto border border-slate-200"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-100 px-5 sm:px-6 py-3.5 bg-slate-50">
           <div>
